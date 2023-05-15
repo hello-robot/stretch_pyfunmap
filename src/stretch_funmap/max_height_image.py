@@ -22,6 +22,7 @@ from scipy.spatial.transform import Rotation
 from copy import deepcopy
 
 class Colormap:
+
     def __init__(self, colormap=cv2.COLORMAP_HSV):
         self.colormap = colormap
         gray_image = np.uint8(np.reshape(np.arange(256), (256, 1)))
@@ -39,38 +40,52 @@ class Colormap:
 
     def get_map_array(self):
         return self.gray_to_color
-        
-    
+
+
 class VolumeOfInterest:
+
     def __init__(self, frame_id, origin, axes, x_in_m, y_in_m, z_in_m):
-        ########################################################
-        # frame_id : frame with respect to which the volume of
-        # interest (VOI) is defined
-        #
-        # origin : x_f, y_f, z_f with respect to frame_id coordinate
-        # system, f, that defines the origin of the volume of interest
-        # (VOI). The origin is at a corner of the VOI.
-        #
-        # axes : A 3x3 rotation matrix with columns that define the
-        # axes of the volume of interest (VOI) with respect to the
-        # frame_id coordinate system. Together with the origin, the
-        # axes form a right-handed coordinate system. The VOI occupies
-        # the positive octant of the coordinate system. The column
-        # vectors of the matrix are unit vectors orthogonal to one
-        # another. The x axis of the VOI is column 0, the y axis is
-        # column 1, and the z axis is column 2.
-        #
-        # x_in_m : length in meters of the edges of the volume
-        # parallel to the x axis defined by axes.
-        #
-        # y_in_m : length in meters of the edges of the volume
-        # parallel to the y axis defined by axes.
-        #
-        # z_in_m : length in meters of the edges of the volume
-        # parallel to the z axis defined by axes.
-        #
-        ########################################################
-        
+        """A 3D box defined as the positive octant of a given frame_id.
+
+        Enables easy conversation of points from other frames to the
+        VOI frame using rigid body transformations.
+
+        Parameters
+        ----------
+        frame_id : str
+            frame with respect to which the volume of interest (VOI)
+            is defined.
+        origin : ndarray
+            A 3x1 origin vector, where x_f, y_f, z_f with respect to
+            frame_id coordinate system, f, that defines the origin of
+            the volume of interest (VOI). The origin is at a corner
+            of the VOI.
+        axes : ndarray
+            A 3x3 rotation matrix with columns that define the
+            axes of the volume of interest (VOI) with respect to the
+            frame_id coordinate system. Together with the origin, the
+            axes form a right-handed coordinate system. The VOI occupies
+            the positive octant of the coordinate system. The column
+            vectors of the matrix are unit vectors orthogonal to one
+            another. The x axis of the VOI is column 0, the y axis is
+            column 1, and the z axis is column 2.
+        x_in_m : float
+            length in meters of the edges of the volume parallel to the
+            x axis defined by `axes`.
+        y_in_m : float
+            length in meters of the edges of the volume parallel to the
+            y axis defined by `axes`.
+        z_in_m : float
+            length in meters of the edges of the volume parallel to the
+            z axis defined by `axes`.
+
+        Attributes
+        ----------
+        points_in_voi_to_frame_id_mat : ndarray
+            4x4 transformation matrix defining voi w.r.t. given frame_id.
+        points_in_frame_id_to_voi_mat : ndarray
+            4x4 transformation matrix defining frame_id w.r.t. voi.
+        """
         self.frame_id = frame_id
         # origin with respect to frame_id coordinate system
         self.origin = origin
@@ -85,6 +100,19 @@ class VolumeOfInterest:
         self.z_in_m = z_in_m
 
     def get_points_to_voi_matrix(self, points_to_frame_id_mat):
+        """Returns the transformation matrix to convert points
+        from any frame to the voi frame.
+
+        Parameters
+        ----------
+        points_to_frame_id_mat : ndarray
+            4x4 transformation matrix defining a new frame w.r.t. frame_id
+
+        Returns
+        -------
+        points_to_voi_mat : ndarray
+            4x4 transformation matrix defining a new frame w.r.t. voi
+        """
         points_to_voi_mat = np.matmul(self.points_in_frame_id_to_voi_mat, points_to_frame_id_mat)
         return points_to_voi_mat
 
@@ -92,6 +120,13 @@ class VolumeOfInterest:
         """Changes the frame in which the VolumeOfInterest is defined.
 
         Assumes the input matrix defines a rigid body transformation.
+
+        Parameters
+        ----------
+        points_in_old_frame_to_new_frame_mat : ndarray
+            4x4 transformation matrix defining frame_id w.r.t. a new frame
+        new_frame_id : str
+            id for the new frame
         """
         self.frame_id = new_frame_id
         # translate the origin
@@ -103,18 +138,32 @@ class VolumeOfInterest:
         self.points_in_frame_id_to_voi_mat = np.linalg.inv(self.points_in_voi_to_frame_id_mat)
 
     def serialize(self):
-        # return dictionary with the parameters needed to recreate it
+        """Return dictionary with the parameters needed to recreate this VOI
+
+        Returns
+        -------
+        data : dict
+            serialized VOI
+        """
         data = {'frame_id': self.frame_id, 'origin': self.origin, 'axes': self.axes, 'x_in_m': self.x_in_m, 'y_in_m': self.y_in_m, 'z_in_m': self.z_in_m}
         return data
 
     @classmethod
     def from_serialization(self, data):
+        """Creates VolumeOfInterest object from serialization.
+
+        Returns
+        -------
+        voi : VolumeOfInterest
+            reconstructed voi
+        """
         d = data
         voi = VolumeOfInterest(d['frame_id'], np.array(d['origin']), np.array(d['axes']), d['x_in_m'], d['y_in_m'], d['z_in_m'])
         return voi
 
-    
+
 class MaxHeightImage:
+
     def __init__(self, volume_of_interest, m_per_pix, pixel_dtype, m_per_height_unit=None, use_camera_depth_image=False, image=None, rgb_image=None, camera_depth_image=None):
         # MaxHeightImage creates a 2D image that represents 3D points
         # strictly within a volume of interest (VOI), so excluding
