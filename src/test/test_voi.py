@@ -276,3 +276,51 @@ class TestVOI(unittest.TestCase):
         np.testing.assert_allclose(expected_axes, voi.axes, atol=1e-7)
         np.testing.assert_allclose(expected_voi_to_new_map, voi.points_in_voi_to_frame_id_mat, atol=1e-7)
         np.testing.assert_allclose(expected_new_map_to_voi, voi.points_in_frame_id_to_voi_mat, atol=1e-7)
+
+    def test_serialization(self):
+        """Create a VolumeOfInterest object and verify
+        the serialized object is correct.
+        """
+        xy_m = 8.0
+        z_m = 2.0
+        voi_side_m = xy_m
+        origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
+        axes = np.eye(3)
+        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+
+        expected_serialization = {
+            'frame_id': 'map',
+            'origin': list(origin.ravel()), # convert numpy array to List for assertDictEqual
+            'axes': list(axes.ravel()), # convert numpy array to List for assertDictEqual
+            'x_in_m': xy_m,
+            'y_in_m': xy_m,
+            'z_in_m': z_m
+        }
+        serialized = voi.serialize()
+        serialized['origin'] = list(serialized['origin'].ravel())
+        serialized['axes'] = list(serialized['axes'].ravel())
+        self.assertDictEqual(expected_serialization, serialized)
+
+    def test_serialization_roundtrip(self):
+        """Test the `serialize()` and `from_serialization()` methods.
+        """
+        xy_m = 8.0
+        z_m = 2.0
+        voi_side_m = xy_m
+        origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
+        axes = np.eye(3)
+        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+
+        expected_serialization = {
+            'frame_id': 'map',
+            'origin': list(origin.ravel()), # convert numpy array to List for assertDictEqual
+            'axes': list(axes.ravel()), # convert numpy array to List for assertDictEqual
+            'x_in_m': xy_m,
+            'y_in_m': xy_m,
+            'z_in_m': z_m
+        }
+        new_voi = stretch_funmap.max_height_image.VolumeOfInterest.from_serialization(voi.serialize())
+        serialized = new_voi.serialize()
+        serialized['origin'] = list(serialized['origin'].ravel())
+        serialized['axes'] = list(serialized['axes'].ravel())
+        self.assertDictEqual(expected_serialization, serialized)
