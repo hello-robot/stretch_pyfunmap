@@ -34,6 +34,60 @@ class TestVOI(unittest.TestCase):
         ])
         np.testing.assert_array_equal(expected_map_to_voi_mat, voi.points_in_frame_id_to_voi_mat)
 
+    def test_voi_frame_projection(self):
+        """Create a VolumeOfInterest object and verify that projected
+        "points wrt voi to frame" and "points wrt frame to voi"
+        are correct.
+        """
+        xy_m = 8.0
+        z_m = 2.0
+        voi_side_m = xy_m
+        origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
+        axes = np.eye(3)
+        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+
+        # test one point
+        points_wrt_voi = np.array([
+            [0.0],
+            [0.0],
+            [0.0]
+        ])
+        expected_points_wrt_map = np.array([
+            [-4.0],
+            [-4.0],
+            [-0.05]
+        ])
+        points_wrt_map = (voi.points_in_voi_to_frame_id_mat @ np.vstack((points_wrt_voi, np.ones(points_wrt_voi.shape[1]))))[:3,:]
+        np.testing.assert_array_equal(expected_points_wrt_map, points_wrt_map)
+
+        # test two points
+        points_wrt_voi = np.array([
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0]
+        ])
+        expected_points_wrt_map = np.array([
+            [-4.0, -4.0],
+            [-4.0, -4.0],
+            [-0.05, -0.05]
+        ])
+        points_wrt_map = (voi.points_in_voi_to_frame_id_mat @ np.vstack((points_wrt_voi, np.ones(points_wrt_voi.shape[1]))))[:3,:]
+        np.testing.assert_array_equal(expected_points_wrt_map, points_wrt_map)
+
+        # test three points
+        points_wrt_voi = np.array([
+            [0.0, 0.0, 4.0],
+            [0.0, 0.0, 4.0],
+            [0.0, 0.0, 0.05]
+        ])
+        expected_points_wrt_map = np.array([
+            [-4.0, -4.0, 0.0],
+            [-4.0, -4.0, 0.0],
+            [-0.05, -0.05, 0.0]
+        ])
+        points_wrt_map = (voi.points_in_voi_to_frame_id_mat @ np.vstack((points_wrt_voi, np.ones(points_wrt_voi.shape[1]))))[:3,:]
+        np.testing.assert_array_equal(expected_points_wrt_map, points_wrt_map)
+
     def test_points_voi_transformations(self):
         """Create a VolumeOfInterest object and verify that the
         "points to voi" transformation matrix from `get_points_to_voi_matrix()`
