@@ -208,3 +208,71 @@ class TestVOI(unittest.TestCase):
             [1.05, 2.05, 0.0]
         ])
         np.testing.assert_allclose(expected_points_wrt_voi, points_wrt_voi, atol=1e-7)
+
+    def test_change_frame_identity(self):
+        """Create a VolumeOfInterest object and verify that the
+        new attributes from a identity frame change are equal to
+        the old attributes.
+        """
+        xy_m = 8.0
+        z_m = 2.0
+        voi_side_m = xy_m
+        origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
+        axes = np.eye(3)
+        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+
+        old_to_new_frame_mat = np.eye(4)
+        new_frame = "new_map"
+        expected_voi_to_new_map = np.copy(voi.points_in_voi_to_frame_id_mat)
+        expected_new_map_to_voi = np.copy(voi.points_in_frame_id_to_voi_mat)
+        voi.change_frame(old_to_new_frame_mat, new_frame)
+        self.assertEqual("new_map", voi.frame_id)
+        np.testing.assert_array_equal(origin, voi.origin)
+        np.testing.assert_array_equal(axes, voi.axes)
+        np.testing.assert_array_equal(expected_voi_to_new_map, voi.points_in_voi_to_frame_id_mat)
+        np.testing.assert_array_equal(expected_new_map_to_voi, voi.points_in_frame_id_to_voi_mat)
+
+    def test_change_frame_rotation(self):
+        """Create a VolumeOfInterest object and verify that the
+        new attributes from a 90 degree rotation along z axis
+        frame change are correct.
+        """
+        xy_m = 8.0
+        z_m = 2.0
+        voi_side_m = xy_m
+        origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
+        axes = np.eye(3)
+        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+
+        rot = np.pi/2
+        old_to_new_frame_mat = np.array([
+            [np.cos(rot), -np.sin(rot), 0.0, 0.0],
+            [np.sin(rot),  np.cos(rot), 0.0, 0.0],
+            [0.0,                  0.0, 1.0, 0.0],
+            [0.0,                  0.0, 0.0, 1.0]
+        ])
+        new_frame = "new_map"
+        expected_origin = np.array([4.0, -4.0, -0.05])
+        expected_axes = np.array([
+            [0.0, -1.0, 0.0],
+            [1.0,  0.0, 0.0],
+            [0.0,  0.0, 1.0]
+        ])
+        expected_voi_to_new_map = np.array([
+            [0.0, -1.0, 0.0,  4.0 ],
+            [1.0,  0.0, 0.0, -4.0 ],
+            [0.0,  0.0, 1.0, -0.05],
+            [0.0,  0.0, 0.0,  1.0 ]
+        ])
+        expected_new_map_to_voi = np.array([
+            [ 0.0, 1.0, 0.0, 4.0 ],
+            [-1.0, 0.0, 0.0, 4.0 ],
+            [ 0.0, 0.0, 1.0, 0.05],
+            [ 0.0, 0.0, 0.0, 1.0 ]
+        ])
+        voi.change_frame(old_to_new_frame_mat, new_frame)
+        self.assertEqual("new_map", voi.frame_id)
+        np.testing.assert_allclose(expected_origin, voi.origin, atol=1e-7)
+        np.testing.assert_allclose(expected_axes, voi.axes, atol=1e-7)
+        np.testing.assert_allclose(expected_voi_to_new_map, voi.points_in_voi_to_frame_id_mat, atol=1e-7)
+        np.testing.assert_allclose(expected_new_map_to_voi, voi.points_in_frame_id_to_voi_mat, atol=1e-7)

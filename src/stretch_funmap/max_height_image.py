@@ -89,26 +89,19 @@ class VolumeOfInterest:
         return points_to_voi_mat
 
     def change_frame(self, points_in_old_frame_to_new_frame_mat, new_frame_id):
-        # Assumes the input matrix defines a rigid body transformation.
-        
-        # translate the origin
-        origin = list(self.origin)
-        origin.append(1.0)
-        origin = np.array(origin)
-        new_origin = np.matmul(points_in_old_frame_to_new_frame_mat, origin)
-        # rotate the axes
-        new_axes = np.matmul(points_in_old_frame_to_new_frame_mat[:3,:3], self.axes)
-        # transform transforms
-        new_points_in_voi_to_frame_id_mat = np.matmul(points_in_old_frame_to_new_frame_mat, self.points_in_voi_to_frame_id_mat)
-        new_points_in_frame_id_to_voi_mat = np.linalg.inv(new_points_in_voi_to_frame_id_mat)
-        # set
+        """Changes the frame in which the VolumeOfInterest is defined.
+
+        Assumes the input matrix defines a rigid body transformation.
+        """
         self.frame_id = new_frame_id
-        self.origin = new_origin
-        self.axes = new_axes
-        self.points_in_voi_to_frame_id_mat = new_points_in_voi_to_frame_id_mat
-        self.points_in_frame_id_to_voi_mat = new_points_in_frame_id_to_voi_mat
-        
-        
+        # translate the origin
+        self.origin = np.matmul(points_in_old_frame_to_new_frame_mat, np.append(self.origin, 1.0))[:3]
+        # rotate the axes
+        self.axes = np.matmul(points_in_old_frame_to_new_frame_mat[:3,:3], self.axes)
+        # transform transforms
+        self.points_in_voi_to_frame_id_mat = np.matmul(points_in_old_frame_to_new_frame_mat, self.points_in_voi_to_frame_id_mat)
+        self.points_in_frame_id_to_voi_mat = np.linalg.inv(self.points_in_voi_to_frame_id_mat)
+
     def serialize(self):
         # return dictionary with the parameters needed to recreate it
         data = {'frame_id': self.frame_id, 'origin': self.origin, 'axes': self.axes, 'x_in_m': self.x_in_m, 'y_in_m': self.y_in_m, 'z_in_m': self.z_in_m}
