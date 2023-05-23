@@ -1,4 +1,3 @@
-
 from numba import jit, njit
 import numpy as np
 import math
@@ -6,7 +5,7 @@ import math
 
 def numba_max_height_image_to_points(points_in_image_to_frame_mat, image, points, m_per_pix, m_per_height_unit):
     dtype = image.dtype
-    
+
     if np.issubdtype(dtype, np.integer):
         return numba_max_height_image_to_points_int(points_in_image_to_frame_mat, image, points, m_per_pix, m_per_height_unit)
     elif np.issubdtype(dtype, np.floating):
@@ -15,7 +14,6 @@ def numba_max_height_image_to_points(points_in_image_to_frame_mat, image, points
 
 @njit(fastmath=True)
 def numba_max_height_image_to_points_int(points_in_image_to_frame_mat, image, points, m_per_pix, m_per_height_unit):
-
     # Update the max height image to represent the provided 3D
     # points. This function is for images with integer pixels.
     im_height, im_width = image.shape
@@ -29,7 +27,7 @@ def numba_max_height_image_to_points_int(points_in_image_to_frame_mat, image, po
     x_array = points['x']
     y_array = points['y']
     z_array = points['z']
-    
+
     i = 0
     for y_i in range(im_height):
         for x_i in range(im_width):
@@ -42,17 +40,16 @@ def numba_max_height_image_to_points_int(points_in_image_to_frame_mat, image, po
                 x_m = x_i * m_per_pix
                 y_m = y_i * -m_per_pix
                 z_m = z_i * m_per_height_unit
-                
+
                 x_f = (r00 * x_m) + (r01 * y_m) + (r02 * z_m) + t0
                 y_f = (r10 * x_m) + (r11 * y_m) + (r12 * z_m) + t1
                 z_f = (r20 * x_m) + (r21 * y_m) + (r22 * z_m) + t2
-                
+
                 x_array[i] = x_f
                 y_array[i] = y_f
                 z_array[i] = z_f
                 i += 1
     return i
-
 
 
 @njit(fastmath=True)
