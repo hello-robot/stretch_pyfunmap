@@ -1,23 +1,18 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
-import numpy as np
-import ros_numpy as rn
-import ros_max_height_image as rm
-from actionlib_msgs.msg import GoalStatus
-import rospy
-import hello_helpers.hello_misc as hm
-import ros_max_height_image as rm
-import ros_numpy
-import yaml
-import navigation_planning as na
-import time
 import cv2
 import copy
-import scipy.ndimage as nd
-import merge_maps as mm
+import time
+import yaml
+import ros_numpy
+import numpy as np
 import tf_conversions
-import segment_max_height_image as sm
+import scipy.ndimage as nd
+
+import stretch_funmap.merge_maps as mm
+import stretch_funmap.ros_max_height_image as rm
+import stretch_funmap.navigation_planning as na
+import stretch_funmap.segment_max_height_image as sm
 
 
 def stow_and_lower_arm(node):
@@ -324,8 +319,8 @@ class HeadScan:
             time_between_point_clouds = time_between_point_clouds
         
         node.move_to_pose(pose)
-        rospy.sleep(head_settle_time)
-        settle_time = rospy.Time.now()
+        time.sleep(head_settle_time)
+        settle_time = time.time()
         prev_cloud_time = None
         num_point_clouds = 0
         # Consider using time stamps to make decisions, instead of
@@ -335,9 +330,11 @@ class HeadScan:
         # timing considerations.
         not_finished = num_point_clouds < num_point_clouds_per_pan_ang
         while not_finished:
-            cloud_time = node.point_cloud.header.stamp
-            cloud_frame = node.point_cloud.header.frame_id
-            point_cloud = ros_numpy.numpify(node.point_cloud)
+            cloud_data = node.get_point_cloud()
+            cloud_time = cloud_data[0]
+            cloud_frame = cloud_data[1]
+            # point_cloud = ros_numpy.numpify(node.point_cloud)
+            point_cloud = cloud_data[2]
             if (cloud_time is not None) and (cloud_time != prev_cloud_time) and (cloud_time >= settle_time): 
                 only_xyz = False
                 if only_xyz:
