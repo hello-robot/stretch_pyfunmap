@@ -1,5 +1,8 @@
-from numba import jit, njit
+#!/usr/bin/env python3
+
 import numpy as np
+from numba import jit, njit
+
 
 @njit(fastmath=True)
 def numba_find_base_poses_that_reach_target(target_x, target_y, num_angles, pix_per_m,
