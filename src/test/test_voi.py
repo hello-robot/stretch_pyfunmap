@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-import stretch_funmap.max_height_image
+import stretch_pyfunmap.max_height_image
 
 
 class TestVOI(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         expected_voi_to_map_mat = np.array([
             [1.0, 0.0, 0.0, -4.0],
@@ -44,7 +44,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         # test one point
         points_wrt_voi = np.array([
@@ -104,7 +104,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         # give the identity and expect the same matrix
         expected_points_to_voi_mat = np.array([
@@ -140,7 +140,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         # test one point - camera frame shifted +1m on z axis
         shift = 1.0
@@ -219,7 +219,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         old_to_new_frame_mat = np.eye(4)
         new_frame = "new_map"
@@ -242,7 +242,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         rot = np.pi/2
         old_to_new_frame_mat = np.array([
@@ -286,7 +286,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         expected_serialization = {
             'frame_id': 'map',
@@ -309,7 +309,7 @@ class TestVOI(unittest.TestCase):
         voi_side_m = xy_m
         origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -0.05])
         axes = np.eye(3)
-        voi = stretch_funmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
+        voi = stretch_pyfunmap.max_height_image.VolumeOfInterest('map', origin, axes, xy_m, xy_m, z_m)
 
         expected_serialization = {
             'frame_id': 'map',
@@ -319,7 +319,7 @@ class TestVOI(unittest.TestCase):
             'y_in_m': xy_m,
             'z_in_m': z_m
         }
-        new_voi = stretch_funmap.max_height_image.VolumeOfInterest.from_serialization(voi.serialize())
+        new_voi = stretch_pyfunmap.max_height_image.VolumeOfInterest.from_serialization(voi.serialize())
         serialized = new_voi.serialize()
         serialized['origin'] = list(serialized['origin'].ravel())
         serialized['axes'] = list(serialized['axes'].ravel())
