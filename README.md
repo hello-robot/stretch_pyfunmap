@@ -27,20 +27,6 @@ In contrast, the Stretch RE1's mobile base is integral to manipulation and typic
 
 # Testing and Development
 
-## Running Tests
-
-There are a number of unit, functional, and performance tests within the `src/test/` folder, separated into test suites by different files. Suites are separated by a functionality within Stretch PyFUNMAP that is being tested.
-
-In Python3, run `python3 -m unittest test.test_<suite-name>`.
-
-For example, to run the `stretch_pyfunmap.max_height_image.MaxHeightImage` unit tests, run:
-
-```bash
-$ git clone https://github.com/hello-robot/stretch_pyfunmap.git
-$ cd stretch_pyfunmap/src
-$ python3 -m unittest test.test_mhi
-```
-
 ## Developing
 
 The source code for Stretch PyFUNMAP resides within the `src/stretch_pyfunmap/` folder. You can install Stretch PyFUNMAP as "editable", and directly edit the source code to test changes.
@@ -57,6 +43,20 @@ $ python3 -m pip install -e .
 ```
 
 Now, make desired edits to the [stretch_pyfunmap/src/stretch_pyfunmap/max_height_image.py](./src/stretch_pyfunmap/max_height_image.py) file. Software using Stretch PyFUNMAP is now using the modified `stretch_pyfunmap.max_height_image.MaxHeightImage` class.
+
+## Running Tests
+
+There are a number of unit, functional, and performance tests within the `src/test/` folder, separated into test suites by different files. Suites are separated by a functionality within Stretch PyFUNMAP that is being tested.
+
+In Python3, [install pip locally](#developing) and run `python3 -m unittest test.test_<suite-name>`.
+
+For example, to run the `stretch_pyfunmap.max_height_image.MaxHeightImage` unit tests, run:
+
+```bash
+# ensure PyFUNMAP installed locally
+$ cd stretch_pyfunmap/src
+$ python3 -m unittest test.test_mhi
+```
 
 ## Changelog
 

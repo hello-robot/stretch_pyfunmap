@@ -1,4 +1,5 @@
 import setuptools
+from Cython.Build import cythonize
 from stretch_pyfunmap.version import __version__
 
 with open("../README.md", "r") as fh:
@@ -14,12 +15,13 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/hello-robot/stretch_pyfunmap",
     packages=setuptools.find_packages(),
+    ext_modules=cythonize("stretch_pyfunmap/cython_min_cost_path.pyx"),
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
         "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)"
     ],
     install_requires=[
-        'numpy', 'scikit-image'
+        'numpy', 'scikit-image', 'Cython', 'numba'
     ]
 )
