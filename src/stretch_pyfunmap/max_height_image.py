@@ -14,8 +14,8 @@ import struct
 import threading
 from collections import deque
 
-import stretch_funmap.numba_height_image as nh
-from stretch_funmap.numba_create_plane_image import numba_create_plane_image, numba_correct_height_image, transform_original_to_corrected, transform_corrected_to_original
+import stretch_pyfunmap.numba_height_image as nh
+from stretch_pyfunmap.numba_create_plane_image import numba_create_plane_image, numba_correct_height_image, transform_original_to_corrected, transform_corrected_to_original
 
 from scipy.spatial.transform import Rotation
 

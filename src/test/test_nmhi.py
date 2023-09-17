@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import timeit
 
-import stretch_funmap.numba_height_image
+import stretch_pyfunmap.numba_height_image
 
 
 class TestNumbaMHI(unittest.TestCase):
@@ -21,21 +21,21 @@ class TestNumbaMHI(unittest.TestCase):
 
         # empty mhi
         image = np.zeros((h, w), dtype=np.uint8)
-        num_points = stretch_funmap.numba_height_image.numba_max_height_image_to_points(
+        num_points = stretch_pyfunmap.numba_height_image.numba_max_height_image_to_points(
             T, image, points, m_per_pix, m_per_height_unit)
         self.assertEqual(0, num_points)
         self.assertFalse((points['z'] == 1.0).all())
 
         # valid mhi
         image = np.full((h, w), 101, dtype=np.uint8)
-        num_points = stretch_funmap.numba_height_image.numba_max_height_image_to_points(
+        num_points = stretch_pyfunmap.numba_height_image.numba_max_height_image_to_points(
             T, image, points, m_per_pix, m_per_height_unit)
         self.assertEqual(h * w, num_points)
         self.assertTrue((points['z'] == 1.0).all())
 
         # random mhi
         image = np.random.randint(1, 255, size=(h, w), dtype=np.uint8)
-        num_points = stretch_funmap.numba_height_image.numba_max_height_image_to_points(
+        num_points = stretch_pyfunmap.numba_height_image.numba_max_height_image_to_points(
             T, image, points, m_per_pix, m_per_height_unit)
         self.assertEqual(h * w, num_points)
         self.assertTrue((points['z'] >= 0.0).all())
@@ -56,7 +56,7 @@ class TestNumbaMHI(unittest.TestCase):
                               ('z', np.float32)])
 
         image = np.random.randint(1, 255, size=(h, w), dtype=np.uint8)
-        num_points = stretch_funmap.numba_height_image.numba_max_height_image_to_points(
+        num_points = stretch_pyfunmap.numba_height_image.numba_max_height_image_to_points(
             T, image, points, m_per_pix, m_per_height_unit)
         self.assertEqual(h * w, num_points)
         self.assertTrue((points['z'] >= 0.0).all())
@@ -70,7 +70,7 @@ class TestNumbaMHI(unittest.TestCase):
                               ('z', np.float32)])
 
         image = np.random.randint(1, 255, size=(h, w), dtype=np.uint8)
-        num_points = stretch_funmap.numba_height_image.numba_max_height_image_to_points(
+        num_points = stretch_pyfunmap.numba_height_image.numba_max_height_image_to_points(
             T, image, points, m_per_pix, m_per_height_unit)
         self.assertEqual(h * w, num_points)
         self.assertTrue((points['z'] >= 0.0).all())
