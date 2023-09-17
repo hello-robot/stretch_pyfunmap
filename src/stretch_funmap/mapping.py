@@ -317,7 +317,7 @@ class HeadScan:
             head_settle_time = head_settle_time
             num_point_clouds_per_pan_ang = 1
             time_between_point_clouds = time_between_point_clouds
-        
+
         node.move_to_pose(pose)
         time.sleep(head_settle_time)
         settle_time = time.time()
@@ -333,8 +333,8 @@ class HeadScan:
             cloud_data = node.get_point_cloud()
             cloud_time = cloud_data[0]
             cloud_frame = cloud_data[1]
-            # point_cloud = ros_numpy.numpify(node.point_cloud)
             point_cloud = cloud_data[2]
+
             if (cloud_time is not None) and (cloud_time != prev_cloud_time) and (cloud_time >= settle_time): 
                 only_xyz = False
                 if only_xyz:
@@ -342,12 +342,12 @@ class HeadScan:
                     self.max_height_im.from_points_with_tf2(xyz, cloud_frame, node.tf2_buffer)
                 else: 
                     rgb_points = ros_numpy.point_cloud2.split_rgb_field(point_cloud)
-                    self.max_height_im.from_rgb_points_with_tf2(rgb_points, cloud_frame, node.tf2_buffer)
+                    self.max_height_im.from_rgb_points_with_tinytf2(rgb_points, cloud_frame, node)
                 num_point_clouds += 1
                 prev_cloud_time = cloud_time
             not_finished = num_point_clouds < num_point_clouds_per_pan_ang
             if not_finished: 
-                rospy.sleep(time_between_point_clouds)
+                time.sleep(time_between_point_clouds)
 
 
     def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node, look_at_self=True):
@@ -375,7 +375,7 @@ class HeadScan:
 
         scan_end_time = time.time()
         scan_duration = scan_end_time - scan_start_time
-        rospy.loginfo('The head scan took {0} seconds.'.format(scan_duration))
+        print('The head scan took {0} seconds.'.format(scan_duration))
             
         #####################################
         # record robot pose information and potentially useful transformations

@@ -542,7 +542,7 @@ class MaxHeightImage:
 
         if self.transform_original_to_corrected is not None: 
             points_to_image_mat = np.matmul(self.transform_original_to_corrected, points_to_image_mat)
-        
+
         if self.camera_depth_image is None: 
             nh.numba_max_height_image(points_to_image_mat, points, self.image, self.m_per_pix, self.m_per_height_unit, self.voi.x_in_m, self.voi.y_in_m, self.voi.z_in_m, verbose=False)
         else:
@@ -551,7 +551,6 @@ class MaxHeightImage:
 
         
     def from_rgb_points(self, points_to_voi_mat, rgb_points):
-        
         points_to_image_mat = points_to_voi_mat
         points_to_image_mat[:3,3] = points_to_image_mat[:3,3] - self.image_origin
         

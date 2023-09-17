@@ -49,7 +49,12 @@ class ROSVolumeOfInterest(VolumeOfInterest):
         if points_to_voi_mat is not None: 
             voi_to_points_mat = np.linalg.inv(points_to_voi_mat)
         return voi_to_points_mat, timestamp
-    
+
+    def get_points_to_voi_matrix_with_tinytf2(self, points_frame_id, node):
+        points_to_frame_id_mat = node.lookup_transform(self.frame_id, points_frame_id)
+        points_to_voi_mat = self.get_points_to_voi_matrix(points_to_frame_id_mat)
+        return points_to_voi_mat
+
     def get_points_to_voi_matrix_with_tf2(self, points_frame_id, tf2_buffer, lookup_time=None, timeout_s=None):
         # If the necessary TF2 transform is successfully looked up,
         # this returns a 4x4 affine transformation matrix that
@@ -252,6 +257,10 @@ class ROSMaxHeightImage(MaxHeightImage):
                 self.last_update_time = points_timestamp
         else:
             print('WARNING: MaxHeightImage from_points failed to update the image likely due to a failure to lookup the transform using TF2')
+
+    def from_rgb_points_with_tinytf2(self, rgb_points, points_frame_id, node):
+        points_to_voi_mat = self.voi.get_points_to_voi_matrix_with_tinytf2(points_frame_id, node)
+        self.from_rgb_points(points_to_voi_mat, rgb_points)
 
     def from_rgb_points_with_tf2(self, rgb_points, points_frame_id, tf2_buffer, points_timestamp=None, timeout_s=None):
         # points should be a numpy array with shape = (N, 3) where N
