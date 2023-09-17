@@ -2,6 +2,7 @@
 
 import cv2
 import math
+import copy
 import numpy as np
 import skimage as sk
 import scipy.signal as si
@@ -17,6 +18,7 @@ import hello_helpers.hello_misc as hm
 
 
 def find_object_to_grasp(height_image, display_on=False):
+    height_image = copy.deepcopy(height_image)
     h_image = height_image.image
     m_per_unit = height_image.m_per_height_unit
     m_per_pix = height_image.m_per_pix
