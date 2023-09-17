@@ -1,5 +1,7 @@
-from numba import jit, njit
+#!/usr/bin/env python3
+
 import numpy as np
+from numba import jit, njit
 
 @njit(fastmath=True)
 def in_bounds(xy, h, w):
