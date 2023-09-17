@@ -1,25 +1,20 @@
-#!/usr/bin/env python
-
-from __future__ import print_function
+#!/usr/bin/env python3
 
 import sys
 import cv2
-import numpy as np
 import math
-
 import yaml
 import gzip
-
 import struct
 import threading
+import numpy as np
+from copy import deepcopy
 from collections import deque
+from scipy.spatial.transform import Rotation
 
 import stretch_pyfunmap.numba_height_image as nh
 from stretch_pyfunmap.numba_create_plane_image import numba_create_plane_image, numba_correct_height_image, transform_original_to_corrected, transform_corrected_to_original
 
-from scipy.spatial.transform import Rotation
-
-from copy import deepcopy
 
 class Colormap:
 
@@ -213,7 +208,7 @@ class MaxHeightImage:
             assert(pixel_dtype in self.supported_dtypes)
 
         self.m_per_pix = m_per_pix
-        
+
         # Copy the volume of interest to avoid issues of it being
         # mutated after creation of the max height image.
         self.voi = deepcopy(volume_of_interest)
@@ -238,11 +233,11 @@ class MaxHeightImage:
             num_z_bins = 1 + int(np.ceil(z_in_m / m_per_height_unit))
             if num_z_bins > max_z_bins:
                 m_per_height_unit = z_in_m / (max_z_bins - 2)
-            return m_per_height_unit    
-        
+            return m_per_height_unit
+
         if np.issubdtype(pixel_dtype, np.integer):
             max_z_bins = np.iinfo(pixel_dtype).max
-            
+
             if m_per_height_unit is None:
                 # Two plausible default behaviors: 1) set to be the
                 # same as the x and y resolution 2) set to the maximum
@@ -261,7 +256,7 @@ class MaxHeightImage:
             # account for 0 representing that no 3D points are in the
             # pixel column volume.
             num_z_bins = 1 + int(np.ceil(self.voi.z_in_m / self.m_per_height_unit))
-            
+
             if num_z_bins > max_z_bins:
                 print('WARNING: Unable to initialize MaxHeightImage with requested or default height resolution. Instead, using the highest resolution available for the given pixel_dtype. Consider changing pixel_dtype.')
                 print('         attempted self.m_per_height_unit =', self.m_per_height_unit)
@@ -274,14 +269,14 @@ class MaxHeightImage:
                 self.m_per_height_unit = find_minimum_m_per_height_unit(self.voi.z_in_m, max_z_bins)
                 print('         actual num_z_bins =', num_z_bins)
                 print('         actual self.m_per_height_unit =', self.m_per_height_unit)
-                
+
         elif np.issubdtype(pixel_dtype, np.floating):
             if m_per_height_unit is not None:
                 print('WARNING: Ignoring provided m_per_height_unit, since pixel_dtype is a float. Float pixels are represented in meters and use no scaling, binning, or discretization.')
                 print('         provided m_per_height_unit =', m_per_height_unit)
             self.m_per_height_unit = None
 
-        if image is None: 
+        if image is None:
             self.image = np.zeros((num_y_bins, num_x_bins), pixel_dtype)
         else:
             # Check that the provided image is consistent with the other parameters
@@ -313,9 +308,9 @@ class MaxHeightImage:
         # camera_depth = 1 + int(round(z_p/0.04))
         self.camera_depth_m_per_unit = 0.04
         self.camera_depth_min = 1
-        
+
         if use_camera_depth_image:
-            if camera_depth_image is None: 
+            if camera_depth_image is None:
                 self.camera_depth_image = np.zeros((num_y_bins, num_x_bins), np.uint8)
             else:
                 # Check that the provided camera depth image is consistent with the other parameters
@@ -327,7 +322,7 @@ class MaxHeightImage:
                 self.camera_depth_image = camera_depth_image
         else:
             self.camera_depth_image = None
-            
+
         # image_origin : The image origin in 3D space with respect to
         # the volume of interest (VOI) coordinate system. The pixel at
         # image[0,0] is the location of the image origin and is
@@ -348,7 +343,7 @@ class MaxHeightImage:
         # meter maximum range.
         depth_pix = self.camera_depth_min + int(round(camera_depth_m/self.camera_depth_m_per_unit))
         return depth_pix
-        
+
     def print_info(self):
         print('MaxHeightImage information:')
         print('     image.shape =', self.image.shape)
@@ -374,16 +369,16 @@ class MaxHeightImage:
         # plane_parameters: [alpha, beta, gamma] such that alpha*x + beta*y + gamma = z
         # plane_height_m: The new height for points on the plane in meters
         plane_height_pix = plane_height_pix
-        
+
         self.image, transform_to_corrected = numba_correct_height_image(plane_parameters, self.image, plane_height_pix)
         self.transform_original_to_corrected = transform_to_corrected
         self.transform_corrected_to_original = np.linalg.inv(transform_to_corrected)
-            
+
     def save( self, base_filename, save_visualization=True ):
         print('MaxHeightImage saving to base_filename =', base_filename)
 
         max_pix = None
-        if save_visualization: 
+        if save_visualization:
             # Save uint8 png image for visualization purposes. This would
             # be sufficient for uint8 pixel_dtypes, but does not work for
             # uint16.
@@ -409,12 +404,11 @@ class MaxHeightImage:
         if self.camera_depth_image is not None:
             camera_depth_image_filename = base_filename + '_camera_depth.png'
             cv2.imwrite(camera_depth_image_filename, self.camera_depth_image)
-            
+
         image_filename = base_filename + '_image.npy.gz'
-        fid = gzip.GzipFile(image_filename, 'w')
-        np.save(fid, self.image, allow_pickle=False, fix_imports=True)
-        fid.close
-        
+        with open(image_filename, 'w') as fid:
+            np.save(fid, self.image, allow_pickle=False, fix_imports=True)
+
         voi_data = self.voi.serialize()
         voi_data['origin'] = voi_data['origin'].tolist()
         voi_data['axes'] = voi_data['axes'].tolist()
@@ -428,25 +422,24 @@ class MaxHeightImage:
             transform_corrected_to_original = self.transform_corrected_to_original.tolist()
         else:
             transform_corrected_to_original = None
-        
+
         data = {'visualization_filename': visualization_filename,
                 'rgb_image_filename': rgb_image_filename,
                 'camera_depth_image_filename': camera_depth_image_filename,
                 'image_filename': image_filename,
                 'image.dtype': str(self.image.dtype),
                 'image.shape': list(self.image.shape),
-                'np.max(image)': max_pix, 
+                'np.max(image)': max_pix,
                 'm_per_pix': self.m_per_pix,
                 'm_per_height_unit': self.m_per_height_unit,
                 'voi_data': voi_data,
                 'image_origin': self.image_origin.tolist(),
-                'transform_original_to_corrected': transform_original_to_corrected, 
+                'transform_original_to_corrected': transform_original_to_corrected,
                 'transform_corrected_to_original': transform_corrected_to_original
         }
 
-        fid = open(base_filename + '.yaml', 'w')
-        yaml.dump(data, fid)
-        fid.close()
+        with open(base_filename + '.yaml', 'w') as fid
+            yaml.dump(data, fid)
 
         print('Finished saving.')
 
@@ -454,14 +447,12 @@ class MaxHeightImage:
     @classmethod
     def load_serialization( self, base_filename ):
         print('MaxHeightImage: Loading serialization data from base_filename =', base_filename)
-        fid = open(base_filename + '.yaml', 'r')
-        data = yaml.load(fid)
-        fid.close()
-        
+        with open(base_filename + '.yaml', 'r'):
+            data = yaml.load(fid)
+
         image_filename = data['image_filename']
-        fid = gzip.GzipFile(image_filename, 'r')
-        image = np.load(fid)
-        fid.close()
+        with gzip.open(image_filename, 'r') as fid:
+            image = np.load(fid)
 
         print('MaxHeightImage: Finished loading serialization data.')
 
@@ -483,7 +474,7 @@ class MaxHeightImage:
     @classmethod
     def from_file( self, base_filename ):
         data, image, rgb_image, camera_depth_image = MaxHeightImage.load_serialization(base_filename)
-        
+
         m_per_pix = data['m_per_pix']
         m_per_height_unit = data['m_per_height_unit']
         image_origin = np.array(data['image_origin'])
@@ -504,7 +495,7 @@ class MaxHeightImage:
 
         if transform_corrected_to_original is not None:
             transform_corrected_to_original = np.array(transform_corrected_to_original)
-        
+
         max_height_image.transform_original_to_corrected = transform_original_to_corrected
         max_height_image.transform_corrected_to_original = transform_corrected_to_original
 
@@ -512,7 +503,7 @@ class MaxHeightImage:
 
 
     def to_points(self, colormap=None):
-        
+
         h, w = self.image.shape
         max_num_points = w * h
         points = np.zeros((max_num_points,),
@@ -524,10 +515,10 @@ class MaxHeightImage:
         points_in_image_to_voi = np.identity(4)
         points_in_image_to_voi[:3, 3] = self.image_origin
         points_in_image_to_frame_id_mat = np.matmul(self.voi.points_in_voi_to_frame_id_mat, points_in_image_to_voi)
-        
-        if self.transform_corrected_to_original is not None: 
+
+        if self.transform_corrected_to_original is not None:
             points_in_image_to_frame_id_mat = np.matmul(points_in_image_to_frame_id_mat, self.transform_corrected_to_original)
-        
+
         num_points = nh.numba_max_height_image_to_points(points_in_image_to_frame_id_mat, self.image, points, self.m_per_pix, self.m_per_height_unit)
 
         points = points[:num_points]
@@ -536,26 +527,26 @@ class MaxHeightImage:
 
 
     def from_points(self, points_to_voi_mat, points):
-        
+
         points_to_image_mat = points_to_voi_mat
         points_to_image_mat[:3,3] = points_to_image_mat[:3,3] - self.image_origin
 
-        if self.transform_original_to_corrected is not None: 
+        if self.transform_original_to_corrected is not None:
             points_to_image_mat = np.matmul(self.transform_original_to_corrected, points_to_image_mat)
-        
-        if self.camera_depth_image is None: 
+
+        if self.camera_depth_image is None:
             nh.numba_max_height_image(points_to_image_mat, points, self.image, self.m_per_pix, self.m_per_height_unit, self.voi.x_in_m, self.voi.y_in_m, self.voi.z_in_m, verbose=False)
         else:
             print('Camera depth image with from_points command is not currently supported.')
             assert(False)
 
-        
+
     def from_rgb_points(self, points_to_voi_mat, rgb_points):
-        
+
         points_to_image_mat = points_to_voi_mat
         points_to_image_mat[:3,3] = points_to_image_mat[:3,3] - self.image_origin
-        
-        if self.transform_original_to_corrected is not None: 
+
+        if self.transform_original_to_corrected is not None:
             points_to_image_mat = np.matmul(self.transform_original_to_corrected, points_to_image_mat)
 
         s0, s1 = self.image.shape
@@ -565,7 +556,7 @@ class MaxHeightImage:
             s = self.image.shape
             self.rgb_image = np.zeros(s[:2] + (3,), np.uint8)
 
-        if self.camera_depth_image is None: 
+        if self.camera_depth_image is None:
             nh.numba_max_height_and_rgb_images(points_to_image_mat, rgb_points, self.image, self.rgb_image, self.m_per_pix, self.m_per_height_unit, self.voi.x_in_m, self.voi.y_in_m, self.voi.z_in_m, verbose=False)
         else:
             nh.numba_max_height_and_rgb_and_camera_depth_images(points_to_image_mat, rgb_points, self.image, self.rgb_image, self.camera_depth_image, self.m_per_pix, self.m_per_height_unit, self.voi.x_in_m, self.voi.y_in_m, self.voi.z_in_m, verbose=False)
