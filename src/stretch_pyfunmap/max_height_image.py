@@ -1,25 +1,20 @@
-#!/usr/bin/env python
-
-from __future__ import print_function
+#!/usr/bin/env python3
 
 import sys
 import cv2
-import numpy as np
 import math
-
 import yaml
 import gzip
-
 import struct
 import threading
+import numpy as np
+from copy import deepcopy
 from collections import deque
+from scipy.spatial.transform import Rotation
 
 import stretch_pyfunmap.numba_height_image as nh
 from stretch_pyfunmap.numba_create_plane_image import numba_create_plane_image, numba_correct_height_image, transform_original_to_corrected, transform_corrected_to_original
 
-from scipy.spatial.transform import Rotation
-
-from copy import deepcopy
 
 class Colormap:
 
@@ -411,9 +406,8 @@ class MaxHeightImage:
             cv2.imwrite(camera_depth_image_filename, self.camera_depth_image)
             
         image_filename = base_filename + '_image.npy.gz'
-        fid = gzip.GzipFile(image_filename, 'w')
-        np.save(fid, self.image, allow_pickle=False, fix_imports=True)
-        fid.close
+        with open(image_filename, 'w') as fid:
+            np.save(fid, self.image, allow_pickle=False, fix_imports=True)
         
         voi_data = self.voi.serialize()
         voi_data['origin'] = voi_data['origin'].tolist()
@@ -444,9 +438,8 @@ class MaxHeightImage:
                 'transform_corrected_to_original': transform_corrected_to_original
         }
 
-        fid = open(base_filename + '.yaml', 'w')
-        yaml.dump(data, fid)
-        fid.close()
+        with open(base_filename + '.yaml', 'w') as fid
+            yaml.dump(data, fid)
 
         print('Finished saving.')
 
@@ -454,14 +447,12 @@ class MaxHeightImage:
     @classmethod
     def load_serialization( self, base_filename ):
         print('MaxHeightImage: Loading serialization data from base_filename =', base_filename)
-        fid = open(base_filename + '.yaml', 'r')
-        data = yaml.load(fid)
-        fid.close()
+        with open(base_filename + '.yaml', 'r'):
+            data = yaml.load(fid)
         
         image_filename = data['image_filename']
-        fid = gzip.GzipFile(image_filename, 'r')
-        image = np.load(fid)
-        fid.close()
+        with gzip.open(image_filename, 'r') as fid:
+            image = np.load(fid)
 
         print('MaxHeightImage: Finished loading serialization data.')
 
