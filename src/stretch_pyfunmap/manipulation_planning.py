@@ -1,23 +1,22 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import print_function
-
+import os
+import cv2
+import math
 import numpy as np
 import scipy.ndimage as nd
 import scipy.signal as si
-import cv2
-import skimage as sk
-import math
-import max_height_image as mh
-import segment_max_height_image as sm
-import ros_max_height_image as rm
-import hello_helpers.hello_misc as hm
-import ros_numpy as rn
-import rospy
-import os
 
-from numba_manipulation_planning import numba_find_base_poses_that_reach_target, numba_check_that_tool_can_deploy
-from numba_check_line_path import numba_find_contact_along_line_path, numba_find_line_path_on_surface
+import stretch_pyfunmap.max_height_image as mh
+import stretch_pyfunmap.segment_max_height_image as sm
+import stretch_pyfunmap.ros_max_height_image as rm
+from stretch_pyfunmap.numba_manipulation_planning import numba_find_base_poses_that_reach_target, numba_check_that_tool_can_deploy
+from stretch_pyfunmap.numba_check_line_path import numba_find_contact_along_line_path, numba_find_line_path_on_surface
+
+import rospy
+import ros_numpy as rn
+import hello_helpers.hello_misc as hm
+
 
 def plan_surface_coverage(tool_start_xy_pix, tool_end_xy_pix, tool_extension_direction_xy_pix, step_size_pix, max_extension_pix, surface_mask_image, obstacle_mask_image):
     # This was designed to be used when planning to clean a flat
@@ -100,7 +99,7 @@ def detect_cliff(image, m_per_pix, m_per_height_unit, robot_xy_pix, display_text
     if use_dilation:
         kernel_width_pix = 3
         iterations = 1
-        kernel_radius_pix = (kernel_width_pix - 1) / 2
+        kernel_radius_pix = (kernel_width_pix - 1) // 2
         kernel = np.zeros((kernel_width_pix, kernel_width_pix), np.uint8)
         cv2.circle(kernel, (kernel_radius_pix, kernel_radius_pix), kernel_radius_pix, 255, -1)
         canny_edges = cv2.dilate(canny_edges, kernel, iterations=iterations)
@@ -201,10 +200,15 @@ def detect_cliff(image, m_per_pix, m_per_height_unit, robot_xy_pix, display_text
     
 
 class ManipulationView():
-    def __init__(self, tf2_buffer, debug_directory=None):
+    def __init__(self, tf2_buffer, debug_directory=None, tool='tool_stretch_gripper'):
         self.debug_directory = debug_directory
         print('ManipulationView __init__: self.debug_directory =', self.debug_directory)
-        
+        self.gripper_links = {
+            'tool_stretch_gripper': 'link_gripper',
+            'tool_stretch_dex_wrist': 'link_straight_gripper_aligned'
+        }
+        self.tool = tool
+
         # Define the volume of interest for planning using the current
         # view.
         
@@ -303,7 +307,7 @@ class ManipulationView():
         if use_dilation:
             kernel_width_pix = 3
             iterations = 1
-            kernel_radius_pix = (kernel_width_pix - 1) / 2
+            kernel_radius_pix = (kernel_width_pix - 1) // 2
             kernel = np.zeros((kernel_width_pix, kernel_width_pix), np.uint8)
             cv2.circle(kernel, (kernel_radius_pix, kernel_radius_pix), kernel_radius_pix, 255, -1)
             mask_image = cv2.dilate(mask_image, kernel, iterations=iterations)
@@ -423,7 +427,7 @@ class ManipulationView():
         # The planar component of the link gripper x_axis is parallel
         # to the middle of the gripper, but points in the opposite
         # direction.
-        gripper_frame = 'link_gripper'
+        gripper_frame = self.gripper_links[self.tool]
         gripper_points_to_image_mat, ip_timestamp = h.get_points_to_image_mat(gripper_frame, tf2_buffer)
         #
         # forward_direction = np.array([1.0, 0.0, 0.0])
@@ -472,7 +476,7 @@ class ManipulationView():
         # The planar component of the link gripper x_axis is parallel
         # to the middle of the gripper, but points in the opposite
         # direction.
-        gripper_frame = 'link_gripper'
+        gripper_frame = self.gripper_links[self.tool]
         gripper_points_to_image_mat, ip_timestamp = h.get_points_to_image_mat(gripper_frame, tf2_buffer)
 
         # Obtain the gripper yaw axis location in the image by
@@ -585,7 +589,7 @@ class ManipulationView():
         # The planar component of the link gripper x_axis is parallel
         # to the middle of the gripper, but points in the opposite
         # direction.
-        gripper_frame = 'link_gripper'
+        gripper_frame = self.gripper_links[self.tool]
         gripper_points_to_image_mat, ip_timestamp = h.get_points_to_image_mat(gripper_frame, tf2_buffer)
 
         # Obtain the gripper yaw axis location in the image by
