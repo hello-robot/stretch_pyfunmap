@@ -1,5 +1,8 @@
-from numba import njit
+#!/usr/bin/env python3
+
 import numpy as np
+from numba import njit
+
 
 @njit(fastmath=True)
 def numba_create_plane_image(plane_parameters, image):
