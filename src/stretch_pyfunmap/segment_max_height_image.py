@@ -522,7 +522,7 @@ def histogram_segment(segments_image, image,
     #
 
     value_hist_is_zero = (value_hist <= epsilon)
-    zero_segments, num_zero_segments = nd.measurements.label(value_hist_is_zero)
+    zero_segments, num_zero_segments = nd.label(value_hist_is_zero)
 
     if verbose:
         print('zero_segments =', zero_segments)
@@ -541,7 +541,7 @@ def histogram_segment(segments_image, image,
     # Set zero regions to 0.
     bumps[value_hist_is_zero] = 0
     # Segment the remaining regions of contigous 1's.
-    bump_segments, num_bump_segments = nd.measurements.label(bumps)
+    bump_segments, num_bump_segments = nd.label(bumps)
 
     if verbose:
         print('bump_segments =', bump_segments)
@@ -817,7 +817,7 @@ def segment(image, m_per_unit, zero_height_m, segmentation_scale=0.1, verbose=Fa
         print('*** ERROR: segment called using image with all zero entries ***')
         return None, None, None
 
-    value_hist, bin_edges = np.histogram(values, bins=num_bins, range=(range_min, range_max), normed=False, weights=None, density=True)
+    value_hist, bin_edges = np.histogram(values, bins=num_bins, range=(range_min, range_max), weights=None, density=True)
 
     scale = segmentation_scale
     sigma = scale * (bin_per_unit * dist_threshold)
@@ -1024,7 +1024,7 @@ def find_floor(segment_info, segments_image, verbose=False):
         return None, None
     max_bin_value = 0.0
     floor_id = None
-    print('segment_max_height_image.py : find_floor')
+
     for i in segment_info:
         height_m = segment_info[i]['height_m']
         bin_value = segment_info[i]['bin_value']
