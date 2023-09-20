@@ -17,19 +17,11 @@ import hello_helpers.fit_plane as fp
 import hello_helpers.hello_misc as hm
 
 
-def find_object_to_grasp(height_image, display_on=False):
+def find_object_to_grasp(surface_mask, plane_parameters, height_image, display_on=False):
     height_image = copy.deepcopy(height_image)
     h_image = height_image.image
     m_per_unit = height_image.m_per_height_unit
     m_per_pix = height_image.m_per_pix
-    height, width = height_image.image.shape
-    robot_xy_pix = [width/2, 0]
-    surface_mask, plane_parameters = find_closest_flat_surface(height_image, robot_xy_pix, display_on=False)
-
-    if surface_mask is None:
-        if display_on:
-            print('No elevated surface found.')
-        return None
 
     surface_height_pix = np.max(h_image[surface_mask > 0])
     surface_height_m = m_per_unit * surface_height_pix
