@@ -202,18 +202,19 @@ def find_objects_to_grasp(surface_mask, plane_parameters, height_image, display_
     h_image = height_image.image
     m_per_unit = height_image.m_per_height_unit
     m_per_pix = height_image.m_per_pix
+    if display_on:
+        cv2.imwrite('height_image.png', h_image)
+        cv2.imwrite('rgb_image.png', height_image.rgb_image)
 
     surface_height_pix = np.max(h_image[surface_mask > 0])
     surface_height_m = m_per_unit * surface_height_pix
     height_image.apply_planar_correction(plane_parameters, surface_height_pix)
     h_image = height_image.image
     if display_on:
-        cv2.imshow('corrected height image', h_image)
-        cv2.imshow('rgb image', height_image.rgb_image)
-
-    if display_on:
+        cv2.imwrite('corrected_height_image.png', h_image)
         rgb_image = height_image.rgb_image.copy()
         rgb_image[surface_mask > 0] = (rgb_image[surface_mask > 0]/2) + [0, 127, 0]
+        cv2.imwrite('surface_mask_over_rgb_image.png', rgb_image)
 
     #####################################
     # Select candidate object points
@@ -238,7 +239,7 @@ def find_objects_to_grasp(surface_mask, plane_parameters, height_image, display_
         rgb_image = height_image.rgb_image.copy()
         rgb_image[surface_mask > 0] = (rgb_image[surface_mask > 0]//2) + [0, 127, 0]
         rgb_image[obstacle_selector] = (rgb_image[obstacle_selector]//2) + [0, 0, 127]
-        cv2.imshow('obstacles', rgb_image)
+        cv2.imwrite('obstacles_selector.png', rgb_image)
 
     obstacle_mask = np.uint8(obstacle_selector)
 
@@ -246,15 +247,24 @@ def find_objects_to_grasp(surface_mask, plane_parameters, height_image, display_
         rgb_image = height_image.rgb_image.copy()
         rgb_image[surface_mask > 0] = (rgb_image[surface_mask > 0]//2) + [0, 127, 0]
         rgb_image[obstacle_mask > 0] = (rgb_image[obstacle_mask > 0]//2) + [0, 0, 127]
+        cv2.imwrite('obstacles_mask.png', rgb_image)
 
     # Find the convex hull of the surface points to represent the full
     # surface, overcoming occlusion holes, noise, and other phenomena.
     surface_convex_hull_mask = convex_hull_image(surface_mask)
+    if display_on:
+        rgb_image = height_image.rgb_image.copy()
+        rgb_image[surface_convex_hull_mask > 0] = (rgb_image[surface_convex_hull_mask > 0]//2) + [0, 127, 0]
+        cv2.imwrite('convexhull_surface_mask_over_rgb_image.png', rgb_image)
 
     # Select candidate object points that are both within the valid
     # height range and on the surface
     obstacles_on_surface_selector = (obstacle_selector & surface_convex_hull_mask)
     obstacles_on_surface = np.uint8(255.0 * obstacles_on_surface_selector)
+    if display_on:
+        rgb_image = height_image.rgb_image.copy()
+        rgb_image[obstacles_on_surface > 0] = (rgb_image[obstacles_on_surface > 0]//2) + [0, 0, 127]
+        cv2.imwrite('obstacles_on_surface.png', rgb_image)
 
     # Dilate and erode the candidate object points to agglomerate
     # object parts that might be separated due to occlusion, noise,
@@ -270,6 +280,10 @@ def find_objects_to_grasp(surface_mask, plane_parameters, height_image, display_
     use_erosion = True
     if use_erosion:
         obstacles_on_surface = cv2.erode(obstacles_on_surface, kernel, iterations=iterations)
+    if display_on:
+        rgb_image = height_image.rgb_image.copy()
+        rgb_image[obstacles_on_surface > 0] = (rgb_image[obstacles_on_surface > 0]//2) + [0, 0, 127]
+        cv2.imwrite('dilated_eroded_obstacles_on_surface.png', rgb_image)
 
     #####################################
     # Process the candidate object points
@@ -280,24 +294,16 @@ def find_objects_to_grasp(surface_mask, plane_parameters, height_image, display_
     if display_on:
         rgb_image = height_image.rgb_image.copy()
         color_label_image = sk.color.label2rgb(label_image, image=rgb_image, colors=None, alpha=0.3, bg_label=0, bg_color=(0, 0, 0), image_alpha=1, kind='overlay')
-        cv2.imshow('color_label_image', color_label_image)
+        color_label_image = np.uint8(255.0 * color_label_image)
+        cv2.imwrite('color_label_image.png', color_label_image)
 
-    # Proceed if an object was found.
-    if len(region_properties) > 0:
-
-        # Select the object with the largest area.
-        largest_region = None
-        largest_area = 0.0
-        for region in region_properties:
-            if region.area > largest_area:
-                largest_region = region
-                largest_area = region.area
-
-        # Make the object with the largest area the grasp target. In
-        # the future, other criteria could be used, such as the
+    # cycle through regions
+    grasp_targets = []
+    for region in region_properties:
+        # In the future, other criteria could be used, such as the
         # likelihood that the gripper can actually grasp the
         # object. For example, the target object might be too large.
-        object_region = largest_region
+        object_region = region
 
         # Collect and compute various features for the target object.
         object_ellipse = get_ellipse(object_region)
@@ -321,8 +327,8 @@ def find_objects_to_grasp(surface_mask, plane_parameters, height_image, display_
             rgb_image = height_image.rgb_image.copy()
             rgb_image[surface_convex_hull_mask > 0] = (rgb_image[surface_convex_hull_mask > 0]//2) + [0, 127, 0]
             rgb_image[label_image == object_region.label] = [0, 0, 255]
-            draw_ellipse_axes_from_region(rgb_image, largest_region, color=[255, 255, 255])
-            cv2.imshow('object to grasp', rgb_image)
+            draw_ellipse_axes_from_region(rgb_image, object_region, color=[255, 255, 255])
+            cv2.imwrite(f'object_to_grasp_{int(object_max_height_m * 100.0)}cm_max_{int(object_mean_height_m * 100.0)}cm_mean.png', rgb_image)
 
         # ellipse = {'centroid': centroid,
         #            'minor': {'axis': minor_axis, 'length': r.minor_axis_length},
@@ -369,13 +375,9 @@ def find_objects_to_grasp(surface_mask, plane_parameters, height_image, display_
                         'object_selector': object_selector,
                         'object_ellipse': object_ellipse}
 
-        if display_on:
-            print('_________________________________')
-            print('grasp_target =')
-            print(grasp_target)
-            print('_________________________________')
+        grasp_targets.append(grasp_target)
 
-        return grasp_target
+    return grasp_targets
 
 def draw_grasp(rgb_image, grasp_target):
     surface_convex_hull_mask = grasp_target['surface_convex_hull_mask']
