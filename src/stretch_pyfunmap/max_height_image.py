@@ -438,7 +438,7 @@ class MaxHeightImage:
                 'transform_corrected_to_original': transform_corrected_to_original
         }
 
-        with open(base_filename + '.yaml', 'w') as fid
+        with open(base_filename + '.yaml', 'w') as fid:
             yaml.dump(data, fid)
 
         print('Finished saving.')
