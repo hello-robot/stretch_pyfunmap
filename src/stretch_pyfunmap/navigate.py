@@ -235,7 +235,7 @@ class MoveBase():
     def backward(self, distance_m, publish_visualizations=True,
                  tolerance_distance_m=0.1, max_forward_attempts=4, detect_obstacles=False, floor_tf='odom'):
         self.forward(distance_m, publish_visualizations=publish_visualizations,
-                     tolerance_distance_m=tolerance_distance_m, max_forward_attempts=max_forward_attempts, detect_obstacles=detect_obstacles, floor_tf='odom')
+                     tolerance_distance_m=tolerance_distance_m, max_forward_attempts=max_forward_attempts, detect_obstacles=detect_obstacles, floor_tf=floor_tf)
 
     def forward(self, distance_m, publish_visualizations=True,
                 tolerance_distance_m=0.1, max_forward_attempts=4, detect_obstacles=True, floor_tf='odom'):
