@@ -572,6 +572,103 @@ def find_closest_flat_surface(height_image, robot_xy_pix, display_on=False):
     return plane_mask, plane_parameters
 
 
+def find_placement_target_on_surface(surface_mask, grasp_location_above_surface_m, height_image, display_on=False):
+    height_image = copy.deepcopy(height_image)
+    h_image = height_image.image
+    m_per_unit = height_image.m_per_height_unit
+    m_per_pix = height_image.m_per_pix
+
+    surface_height_pix = np.max(h_image[surface_mask > 0])
+    surface_height_m = m_per_unit * surface_height_pix
+
+    # Find the convex hull of the surface points to represent the full
+    # surface, overcoming occlusion holes, noise, and other phenomena.
+    surface_convex_hull_mask = convex_hull_image(surface_mask)
+    surface_convex_hull = np.uint8(255.0 * surface_convex_hull_mask)
+
+    # Dilate and erode the candidate object points to agglomerate
+    # object parts that might be separated due to occlusion, noise,
+    # and other phenomena.
+    kernel_width_pix = 5 #3
+    iterations = 3 #5
+    kernel_radius_pix = (kernel_width_pix - 1) // 2
+    kernel = np.zeros((kernel_width_pix, kernel_width_pix), np.uint8)
+    cv2.circle(kernel, (kernel_radius_pix, kernel_radius_pix), kernel_radius_pix, 255, -1)
+    use_dilation = True
+    if use_dilation:
+        surface_convex_hull = cv2.dilate(surface_convex_hull, kernel, iterations=iterations)
+    use_erosion = True
+    if use_erosion:
+        surface_convex_hull = cv2.erode(surface_convex_hull, kernel, iterations=iterations)
+
+    # Treat connected components of candidate object points as objects. Fit ellipses to these segmented objects.
+    label_image, max_label_index = sk.measure.label(surface_convex_hull, background=0, return_num=True, connectivity=2)
+    region_properties = sk.measure.regionprops(label_image, intensity_image=None, cache=True)
+    if display_on:
+        rgb_image = height_image.rgb_image.copy()
+        color_label_image = sk.color.label2rgb(label_image, image=rgb_image, colors=None, alpha=0.3, bg_label=0, bg_color=(0, 0, 0), image_alpha=1, kind='overlay')
+        color_label_image = np.uint8(255.0 * color_label_image)
+        cv2.imwrite('color_label_image.png', color_label_image)
+
+    # Proceed if an object was found.
+    if len(region_properties) > 0:
+
+        # Select the object with the largest area.
+        largest_region = None
+        largest_area = 0.0
+        for region in region_properties:
+            if region.area > largest_area:
+                largest_region = region
+                largest_area = region.area
+
+        # Make the object with the largest area the grasp target. In
+        # the future, other criteria could be used, such as the
+        # likelihood that the gripper can actually grasp the
+        # object. For example, the target object might be too large.
+        object_region = largest_region
+
+        # Collect and compute various features for the target object.
+        object_ellipse = get_ellipse(object_region)
+
+        if display_on:
+            rgb_image = height_image.rgb_image.copy()
+            rgb_image[surface_convex_hull_mask > 0] = (rgb_image[surface_convex_hull_mask > 0]//2) + [0, 127, 0]
+            rgb_image[label_image == object_region.label] = [0, 0, 255]
+            draw_ellipse_axes_from_region(rgb_image, object_region, color=[255, 255, 255])
+            cv2.imwrite(f'object_to_place.png', rgb_image)
+
+        # Prepare grasp target information.
+        grasp_location_xy_pix = object_ellipse['centroid']
+        major_length_pix = object_ellipse['major']['length']
+        major_length_m = m_per_pix * major_length_pix
+        minor_length_pix = object_ellipse['minor']['length']
+        if display_on:
+            print('object_ellipse =', object_ellipse)
+
+        grasp_elongated = False
+        grasp_width_pix = major_length_pix
+        grasp_aperture_axis_pix = None
+        grasp_long_axis_pix = None
+
+        grasp_width_m = m_per_pix * grasp_width_pix
+
+        grasp_location_z_pix = surface_height_pix + (grasp_location_above_surface_m / m_per_unit)
+
+        placement_target = {'location_xy_pix': grasp_location_xy_pix,
+                        'elongated': grasp_elongated,
+                        'width_pix' : grasp_width_pix,
+                        'width_m' : grasp_width_m,
+                        'aperture_axis_pix': grasp_aperture_axis_pix,
+                        'long_axis_pix': grasp_long_axis_pix,
+                        'location_above_surface_m': grasp_location_above_surface_m,
+                        'location_z_pix': grasp_location_z_pix,
+                        'object_max_height_above_surface_m': None,
+                        'surface_convex_hull_mask': surface_convex_hull_mask,
+                        'object_selector': None,
+                        'object_ellipse': object_ellipse}
+
+        return placement_target
+
 def render_segments(segments_image, segment_info, output_key_image=False):
     segment_ids = [segment_id for segment_id in segment_info]
     max_segment_id = max(segment_ids)
