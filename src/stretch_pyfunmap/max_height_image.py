@@ -502,9 +502,10 @@ class MaxHeightImage:
         return max_height_image
 
 
-    def to_points(self, colormap=None):
+    def to_points(self, colormap=None, substitute_image=None):
+        working_image = self.image if substitute_image is None else substitute_image
 
-        h, w = self.image.shape
+        h, w = working_image.shape
         max_num_points = w * h
         points = np.zeros((max_num_points,),
                           dtype=[
@@ -519,7 +520,7 @@ class MaxHeightImage:
         if self.transform_corrected_to_original is not None:
             points_in_image_to_frame_id_mat = np.matmul(points_in_image_to_frame_id_mat, self.transform_corrected_to_original)
 
-        num_points = nh.numba_max_height_image_to_points(points_in_image_to_frame_id_mat, self.image, points, self.m_per_pix, self.m_per_height_unit)
+        num_points = nh.numba_max_height_image_to_points(points_in_image_to_frame_id_mat, working_image, points, self.m_per_pix, self.m_per_height_unit)
 
         points = points[:num_points]
 
