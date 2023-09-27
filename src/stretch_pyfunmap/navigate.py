@@ -233,18 +233,18 @@ class MoveBase():
         return check_result
 
     def backward(self, distance_m, publish_visualizations=True,
-                 tolerance_distance_m=0.1, max_forward_attempts=4, detect_obstacles=False):
+                 tolerance_distance_m=0.1, max_forward_attempts=4, detect_obstacles=False, floor_tf='odom'):
         self.forward(distance_m, publish_visualizations=publish_visualizations,
-                     tolerance_distance_m=tolerance_distance_m, max_forward_attempts=max_forward_attempts, detect_obstacles=detect_obstacles)
+                     tolerance_distance_m=tolerance_distance_m, max_forward_attempts=max_forward_attempts, detect_obstacles=detect_obstacles, floor_tf='odom')
 
     def forward(self, distance_m, publish_visualizations=True,
-                tolerance_distance_m=0.1, max_forward_attempts=4, detect_obstacles=True):
+                tolerance_distance_m=0.1, max_forward_attempts=4, detect_obstacles=True, floor_tf='odom'):
         # The head needs to have been moved forward prior to calling
         # this function. Consider checking that the head's pose is
         # correct before proceeding
 
         # obtain the initial position of the robot
-        xya, timestamp = self.node.get_robot_floor_pose_xya()
+        xya, timestamp = self.node.get_robot_floor_pose_xya(floor_frame=floor_tf)
         start_position_m = xya[:2]
         start_angle_rad = xya[2]
         start_direction = np.array([np.cos(start_angle_rad), np.sin(start_angle_rad)])
@@ -286,7 +286,7 @@ class MoveBase():
                 at_goal, unsuccessful_action = self.check_move_state(self.node.trajectory_client)
 
             # obtain the new position of the robot
-            xya, timestamp = self.node.get_robot_floor_pose_xya()
+            xya, timestamp = self.node.get_robot_floor_pose_xya(floor_frame=floor_tf)
             end_position_m = xya[:2]
             end_angle_rad = xya[2]
             end_direction = np.array([np.cos(end_angle_rad), np.sin(end_angle_rad)])
