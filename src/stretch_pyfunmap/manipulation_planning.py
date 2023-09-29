@@ -436,7 +436,7 @@ class ManipulationView():
         delta_arm_m = m_per_pix * (grasp_target['location_xy_pix'][1] - tooltip_y) + mitigate_overreach
         arm_pos, _, _, _ = node.get_joint_state('joint_arm')
         target_arm_m = clip(arm_pos + delta_arm_m, 0.01, 0.5)
-        pretarget_arm_m = clip(arm_pos + delta_arm_m + 0.03, 0.01, 0.5)
+        pretarget_arm_m = clip(arm_pos + delta_arm_m - 0.03, 0.01, 0.5)
         node.move_to_pose({'joint_arm': pretarget_arm_m})
 
         rospy.sleep(0.5)
