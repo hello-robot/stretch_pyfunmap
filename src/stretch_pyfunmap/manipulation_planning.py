@@ -400,6 +400,57 @@ class ManipulationView():
 
         return grasp_target
 
+    def perform_cartesian_grasp(self, grasp_target, node, tooltip_frame='link_grasp_center', mitigate_overreach=-0.03, placing=False):
+        def clip(val, lower, upper):
+            val = max(val, lower)
+            val = min(val, upper)
+            return val
+
+        if not placing:
+            node.move_to_pose({'gripper_aperture': 0.125})
+        node.move_to_pose({'joint_wrist_yaw': 0.0})
+        if self.tool == "tool_stretch_dex_wrist":
+            node.move_to_pose({'joint_wrist_pitch': -0.3, 'joint_wrist_roll': 0.0})
+        rospy.sleep(2)
+
+        m_per_unit = self.max_height_im.m_per_height_unit
+        m_per_pix = self.max_height_im.m_per_pix
+        tooltip_points_to_image_mat, _ = self.max_height_im.get_points_to_image_mat(tooltip_frame, node.tf2_buffer)
+        # Obtain the tooltip location in the image by obtaining the
+        # translational component of the transform, which is the same
+        # as multiplying by [0,0,0,1]
+        tooltip_x, tooltip_y, tooltip_z = tooltip_points_to_image_mat[:, 3][:3]
+
+        # Lift - Z Axis
+        delta_lift_m = m_per_unit * (grasp_target['location_z_pix'] - tooltip_z)
+        lift_pos, _, _, _ = node.get_joint_state('joint_lift')
+        target_lift_m = clip(lift_pos + delta_lift_m, 0.1, 1.1)
+        pretarget_lift_m = clip(lift_pos + delta_lift_m + 0.03, 0.1, 1.1)
+        node.move_to_pose({'joint_lift': pretarget_lift_m})
+
+        # Base - X Axis
+        delta_base_m = m_per_pix * (grasp_target['location_xy_pix'][0] - tooltip_x)
+        node.move_to_pose({'translate_mobile_base': delta_base_m})
+
+        # Arm - Y Axis
+        delta_arm_m = m_per_pix * (grasp_target['location_xy_pix'][1] - tooltip_y) + mitigate_overreach
+        arm_pos, _, _, _ = node.get_joint_state('joint_arm')
+        target_arm_m = clip(arm_pos + delta_arm_m, 0.01, 0.5)
+        pretarget_arm_m = clip(arm_pos + delta_arm_m + 0.03, 0.01, 0.5)
+        node.move_to_pose({'joint_arm': pretarget_arm_m})
+
+        rospy.sleep(0.5)
+
+        node.move_to_pose({'joint_lift': target_lift_m, 'joint_arm': target_arm_m})
+        rospy.sleep(0.25)
+        if placing:
+            node.move_to_pose({'gripper_aperture': 0.125})
+        else:
+            node.move_to_pose({'gripper_aperture': grasp_target['width_m'] - 0.18})
+        rospy.sleep(2)
+
+        node.move_to_pose({'joint_lift': target_lift_m + 0.15})
+
     def get_pregrasp_lift(self, grasp_target, tf2_buffer):
         h = self.max_height_im
         m_per_unit = h.m_per_height_unit
