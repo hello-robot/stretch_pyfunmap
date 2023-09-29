@@ -449,7 +449,7 @@ class ManipulationView():
             node.move_to_pose({'gripper_aperture': grasp_target['width_m'] - 0.18})
         rospy.sleep(2)
 
-        node.move_to_pose({'joint_lift': target_lift_m + 0.15})
+        node.move_to_pose({'joint_lift': target_lift_m + 0.25})
 
     def get_pregrasp_lift(self, grasp_target, tf2_buffer):
         h = self.max_height_im
