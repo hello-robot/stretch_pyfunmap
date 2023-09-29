@@ -400,7 +400,6 @@ class ManipulationView():
 
         return grasp_target
 
-
     def get_pregrasp_lift(self, grasp_target, tf2_buffer):
         h = self.max_height_im
         m_per_unit = h.m_per_height_unit
@@ -420,7 +419,6 @@ class ManipulationView():
         if lift_to_pregrasp_m > 0.94:
             lift_to_pregrasp_m = 0.94
         return lift_to_pregrasp_m
-
 
     def get_pregrasp_yaw(self, grasp_target, tf2_buffer):
         h = self.max_height_im
@@ -467,7 +465,6 @@ class ManipulationView():
             yaw_angle = float(hm.angle_diff_rad(object_ang_rad, gripper_ang_rad))
 
         return yaw_angle
-
 
     def get_pregrasp_planar_translation(self, grasp_target, tf2_buffer):
         h = self.max_height_im
@@ -565,7 +562,6 @@ class ManipulationView():
         pregrasp_wrist_extension_m = wrist_extension_m
 
         return pregrasp_mobile_base_m, pregrasp_wrist_extension_m
-
 
     def get_grasp_from_pregrasp(self, grasp_target, tf2_buffer):
 
@@ -677,7 +673,6 @@ class ManipulationView():
         grasp_wrist_extension_m = wrist_extension_m
 
         return grasp_mobile_base_m, grasp_lift_m, grasp_wrist_extension_m
-
 
     def get_surface_wiping_plan(self, tf2_buffer, tool_width_m, tool_length_m, step_size_m):
         strokes = None
@@ -832,7 +827,6 @@ class ManipulationView():
 
         return strokes, simple_plan, lift_to_surface_m
 
-
     def get_nearest_cliff(self, frame_id, tf2_buffer):
         p0 = None
         p1 = None
@@ -887,7 +881,6 @@ class ManipulationView():
         voi_marker_pub.publish(marker)
         point_cloud = self.max_height_im.to_point_cloud()
         point_cloud_pub.publish(point_cloud)
-
 
 
 class PlanarRobotModel:
