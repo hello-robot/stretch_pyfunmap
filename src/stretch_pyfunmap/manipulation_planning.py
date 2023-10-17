@@ -400,7 +400,7 @@ class ManipulationView():
 
         return grasp_target
 
-    def perform_cartesian_grasp(self, grasp_target, node, tooltip_frame='link_grasp_center', mitigate_overreach=-0.03, placing=False):
+    def perform_cartesian_grasp(self, grasp_target, node, tooltip_frame='link_grasp_center', mitigate_overreach=0.0, placing=False):
         def clip(val, lower, upper):
             val = max(val, lower)
             val = min(val, upper)
@@ -446,7 +446,7 @@ class ManipulationView():
         if placing:
             node.move_to_pose({'gripper_aperture': 0.125})
         else:
-            node.move_to_pose({'gripper_aperture': grasp_target['width_m'] - 0.18})
+            node.move_to_pose({'gripper_aperture': -0.18})
         rospy.sleep(2)
 
         node.move_to_pose({'joint_lift': target_lift_m + 0.25})
