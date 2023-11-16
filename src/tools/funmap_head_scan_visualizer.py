@@ -1,6 +1,6 @@
 import stretch_pyfunmap.robot
 
 robot = stretch_pyfunmap.robot.FunmapRobot()
-if robot.body.is_calibrated():
-    print('Stretch is ready to go')
+robot.show_head_cam(apply_global_histogram_equalization=True)
+# robot.head_scan()
 robot.body.stop()
