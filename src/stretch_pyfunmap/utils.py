@@ -122,23 +122,19 @@ def frustum(out, intrinsics, color=(0x40, 0x40, 0x40)):
         line3d(out, view(bottom_left), view(top_left), color)
 
 
-def pointcloud(out, points_arr):
+def pointcloud(out, cloud):
     """draw point cloud"""
-    verts = np.vstack((points_arr['x'], points_arr['y'], points_arr['z'])).T
+    verts = np.vstack((cloud['x'], cloud['y'], cloud['z'])).T
     proj = project(out, view(verts))
 
-    h, w = out.shape[:2]
-
-    # proj now contains 2d image coordinates
+    # proj now contains 2d image coordinates clipped to the display size
     j, i = proj.astype(np.uint32).T
+    h, w = out.shape[:2]
+    j = np.clip(j, 0, w-1)
+    i = np.clip(i, 0, h-1)
 
-    # create a mask to ignore out-of-bound indices
-    im = (i >= 0) & (i < h)
-    jm = (j >= 0) & (j < w)
-    m = im & jm
-
-    # perform uv-mapping
-    out[i, j] = np.vstack((points_arr['b'], points_arr['g'], points_arr['r'])).T
+    # perform color assignment
+    out[i, j] = np.vstack((cloud['b'], cloud['g'], cloud['r'])).T
 
 
 def mouse_cb(event, x, y, flags, param):
@@ -154,11 +150,11 @@ def mouse_cb(event, x, y, flags, param):
     # if event == cv2.EVENT_RBUTTONUP:
     #     state.mouse_btns[1] = False
 
-    # if event == cv2.EVENT_MBUTTONDOWN:
-    #     state.mouse_btns[2] = True
+    if event == cv2.EVENT_MBUTTONDOWN:
+        state.mouse_btns[2] = True
 
-    # if event == cv2.EVENT_MBUTTONUP:
-    #     state.mouse_btns[2] = False
+    if event == cv2.EVENT_MBUTTONUP:
+        state.mouse_btns[2] = False
 
     if event == cv2.EVENT_MOUSEMOVE:
         h, w = state.total_image_shape[:2]

@@ -1,5 +1,6 @@
 import sys
 import cv2
+import time
 import numpy as np
 import stretch_body.robot
 import pyrealsense2 as rs
@@ -59,38 +60,38 @@ class FunmapRobot:
 
                 # Create pointcloud
                 if pointcloud:
-                    points = self._pc_creator.calculate(depth_frame)
                     self._pc_creator.map_to(color_frame)
-                    verts = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
+                    points = self._pc_creator.calculate(depth_frame)
+                    xyz = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
                     texcoords = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
                     cw, ch = color_image.shape[:2][::-1]
-                    v, u = (texcoords * (cw, ch) + 0.5).astype(np.uint32).T
-                    np.clip(u, 0, ch-1, out=u)
-                    np.clip(v, 0, cw-1, out=v)
-                    rgb = color_image[u, v]
-                    xyz = verts
-                    num_valid_points = xyz.shape[0]
-                    points_arr = np.zeros((num_valid_points,), dtype=[
+                    v_map = np.clip(texcoords[:,0] * cw + 1.5, 0, cw+1).astype(np.uint32)
+                    u_map = np.clip(texcoords[:,1] * ch + 1.5, 0, ch+1).astype(np.uint32)
+                    color_padded = np.pad(color_image, pad_width=[(1, 1),(1, 1),(0, 0)])
+                    rgb = color_padded[u_map, v_map]
+
+                    cloud = np.zeros((points.size(),), dtype=[
                                     ('x', np.float32),
                                     ('y', np.float32),
                                     ('z', np.float32),
                                     ('r', np.uint8),
                                     ('g', np.uint8),
                                     ('b', np.uint8)])
-                    points_arr['x'] = xyz[:, 0]
-                    points_arr['y'] = xyz[:, 1]
-                    points_arr['z'] = xyz[:, 2]
-                    points_arr['r'] = rgb[:, 2]
-                    points_arr['g'] = rgb[:, 1]
-                    points_arr['b'] = rgb[:, 0]
+                    cloud['x'] = xyz[:, 0]
+                    cloud['y'] = xyz[:, 1]
+                    cloud['z'] = xyz[:, 2]
+                    cloud['r'] = rgb[:, 2]
+                    cloud['g'] = rgb[:, 1]
+                    cloud['b'] = rgb[:, 0]
 
                 # Create pointcloud image
                 if pointcloud:
-                    pc_image = np.zeros((depth_image.shape[0], depth_image.shape[1], 3), dtype=np.uint8)
+                    pc_image = np.empty((depth_image.shape[0], depth_image.shape[1], 3), dtype=np.uint8)
+                    pc_image.fill(100)
                     # utils.grid(pc_image, (0, 0.5, 1))
                     # depth_intrinsics = rs.video_stream_profile(depth_frame.profile).get_intrinsics()
                     # utils.frustum(pc_image, depth_intrinsics)
-                    utils.pointcloud(pc_image, points_arr)
+                    utils.pointcloud(pc_image, cloud)
                     utils.axes(pc_image, utils.view([0, 0, 0]), utils.state.rotation, size=0.1, thickness=1)
 
                 # Apply histogram equalization if desired
@@ -141,5 +142,40 @@ class FunmapRobot:
         except KeyboardInterrupt:
             return
 
-    def head_scan(self):
-        pass
+    def head_scan(self, autoexposure_timeout=3.0):
+        color_frame = None
+        depth_frame = None
+        start = time.time()
+        print(f'INFO: wait {autoexposure_timeout} seconds for head cam autoexposure to adjust')
+        while (time.time() - start < autoexposure_timeout) or (not color_frame or not depth_frame):
+            # Get the latest frames from the camera
+            frames = self.head_cam.wait_for_frames()
+            color_frame = frames.get_color_frame()
+            depth_frame = frames.get_depth_frame()
+
+        color_image = np.asanyarray(color_frame.get_data())
+        depth_image = np.asanyarray(depth_frame.get_data())
+
+        self._pc_creator.map_to(color_frame)
+        points = self._pc_creator.calculate(depth_frame)
+        xyz = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
+        texcoords = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
+        cw, ch = color_image.shape[:2][::-1]
+        v_map = np.clip(texcoords[:,0] * cw + 1.5, 0, cw+1).astype(np.uint32)
+        u_map = np.clip(texcoords[:,1] * ch + 1.5, 0, ch+1).astype(np.uint32)
+        color_padded = np.pad(color_image, pad_width=[(1, 1),(1, 1),(0, 0)])
+        rgb = color_padded[u_map, v_map]
+
+        points_arr = np.zeros((points.size(),), dtype=[
+                        ('x', np.float32),
+                        ('y', np.float32),
+                        ('z', np.float32),
+                        ('r', np.uint8),
+                        ('g', np.uint8),
+                        ('b', np.uint8)])
+        points_arr['x'] = xyz[:, 0]
+        points_arr['y'] = xyz[:, 1]
+        points_arr['z'] = xyz[:, 2]
+        points_arr['r'] = rgb[:, 2]
+        points_arr['g'] = rgb[:, 1]
+        points_arr['b'] = rgb[:, 0]
