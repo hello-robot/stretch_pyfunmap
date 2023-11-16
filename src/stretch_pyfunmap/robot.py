@@ -4,6 +4,8 @@ import numpy as np
 import stretch_body.robot
 import pyrealsense2 as rs
 
+import stretch_pyfunmap.utils as utils
+
 
 class FunmapRobot:
 
@@ -22,6 +24,7 @@ class FunmapRobot:
 
         # setup Stretch's head camera
         self.head_cam = head_cam
+        self._pc_creator = rs.pointcloud()
         if self.head_cam is None:
             self.head_cam = rs.pipeline()
             fps = 15
@@ -32,7 +35,7 @@ class FunmapRobot:
             config.enable_stream(rs.stream.depth, resolution_depth[0], resolution_depth[1], rs.format.z16, fps)
             self.head_cam.start(config)
 
-    def show_head_cam(self, hold=False, align=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN):
+    def show_head_cam(self, hold=False, align=False, pointcloud=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN):
         try:
             while True:
                 # Get the latest frames from the camera
@@ -41,14 +44,34 @@ class FunmapRobot:
                 depth_frame = frames.get_depth_frame()
                 if not color_frame or not depth_frame:
                     continue
-                aligner = rs.align(rs.stream.depth)
-                aligned = aligner.process(frames)
-                color_aligned_to_depth_frame = aligned.first(rs.stream.color)
+
+                # Align color to depth
+                if align:
+                    aligner = rs.align(rs.stream.depth)
+                    aligned = aligner.process(frames)
+                    color_aligned_to_depth_frame = aligned.first(rs.stream.color)
 
                 # Convert images to numpy arrays
                 color_image = np.asanyarray(color_frame.get_data())
                 depth_image = np.asanyarray(depth_frame.get_data())
-                color_aligned_to_depth_image = np.asanyarray(color_aligned_to_depth_frame.get_data())
+                if align:
+                    color_aligned_to_depth_image = np.asanyarray(color_aligned_to_depth_frame.get_data())
+
+                # Create pointcloud
+                if pointcloud:
+                    points = self._pc_creator.calculate(depth_frame)
+                    self._pc_creator.map_to(color_frame)
+                    verts = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
+                    texcoords = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
+
+                # Create pointcloud image
+                if pointcloud:
+                    pc_image = np.zeros((depth_image.shape[0], depth_image.shape[1], 3), dtype=np.uint8)
+                    # utils.grid(pc_image, (0, 0.5, 1))
+                    # depth_intrinsics = rs.video_stream_profile(depth_frame.profile).get_intrinsics()
+                    # utils.frustum(pc_image, depth_intrinsics)
+                    utils.pointcloud(pc_image, verts, texcoords, color_image)
+                    utils.axes(pc_image, utils.view([0, 0, 0]), utils.state.rotation, size=0.1, thickness=1)
 
                 # Apply histogram equalization if desired
                 if apply_clahe:
@@ -67,29 +90,28 @@ class FunmapRobot:
                 color_image = np.fliplr(color_image)
                 depth_image = np.moveaxis(depth_image, 0, 1)
                 depth_image = np.fliplr(depth_image)
-                color_aligned_to_depth_image = np.moveaxis(color_aligned_to_depth_image, 0, 1)
-                color_aligned_to_depth_image = np.fliplr(color_aligned_to_depth_image)
+                if align:
+                    color_aligned_to_depth_image = np.moveaxis(color_aligned_to_depth_image, 0, 1)
+                    color_aligned_to_depth_image = np.fliplr(color_aligned_to_depth_image)
+                if pointcloud:
+                    pc_image = np.moveaxis(pc_image, 0, 1)
+                    pc_image = np.fliplr(pc_image)
 
                 # Concatenate images horizontally
-                # Pad images if they are different heights
-                pad_y = color_image.shape[0] - depth_image.shape[0]
-                if pad_y > 0:
-                    color_image_padded = color_image
-                    color_aligned_to_depth_image_padded = color_aligned_to_depth_image
-                    depth_image_padded = np.pad(depth_image, ((pad_y, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                else:
-                    pad_y = abs(pad_y)
-                    color_image_padded = np.pad(color_image, ((pad_y, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    color_aligned_to_depth_image_padded = np.pad(color_aligned_to_depth_image, ((pad_y, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    depth_image_padded = depth_image
-                # Tile the images
+                if color_image.shape[0] != depth_image.shape[0]:
+                    print('WARN: cannot show head cam if color & depth are of different resolutions')
+                    raise KeyboardInterrupt()
+                colorAndDepth_image = np.hstack((color_image, depth_image))
                 if align:
-                    colorAndDepth_image = np.hstack((color_image_padded, color_aligned_to_depth_image, depth_image_padded))
-                else:
-                    colorAndDepth_image = np.hstack((color_image_padded, depth_image_padded))
+                    colorAndDepth_image = np.hstack((colorAndDepth_image, color_aligned_to_depth_image))
+                if pointcloud:
+                    colorAndDepth_image = np.hstack((colorAndDepth_image, pc_image))
 
                 # Show image in window
                 cv2.namedWindow('Head Cam', cv2.WINDOW_AUTOSIZE)
+                if pointcloud:
+                    utils.state.total_image_shape = colorAndDepth_image.shape
+                    cv2.setMouseCallback('Head Cam', utils.mouse_cb)
                 cv2.imshow('Head Cam', colorAndDepth_image)
                 wknum = 0 if hold else 1 # 0 -> infinite hold, 1 -> loop after 1ms
                 wkret = cv2.waitKey(wknum)
