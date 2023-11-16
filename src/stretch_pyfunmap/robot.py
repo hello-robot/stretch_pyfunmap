@@ -32,7 +32,7 @@ class FunmapRobot:
             config.enable_stream(rs.stream.depth, resolution_depth[0], resolution_depth[1], rs.format.z16, fps)
             self.head_cam.start(config)
 
-    def show_head_cam(self, hold=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN):
+    def show_head_cam(self, hold=False, align=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN):
         try:
             while True:
                 # Get the latest frames from the camera
@@ -41,13 +41,17 @@ class FunmapRobot:
                 depth_frame = frames.get_depth_frame()
                 if not color_frame or not depth_frame:
                     continue
+                aligner = rs.align(rs.stream.depth)
+                aligned = aligner.process(frames)
+                color_aligned_to_depth_frame = aligned.first(rs.stream.color)
 
                 # Convert images to numpy arrays
                 color_image = np.asanyarray(color_frame.get_data())
                 depth_image = np.asanyarray(depth_frame.get_data())
+                color_aligned_to_depth_image = np.asanyarray(color_aligned_to_depth_frame.get_data())
 
                 # Apply histogram equalization if desired
-                if apply_local_histogram_equalization:
+                if apply_clahe:
                     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
                     color_image_lab = cv2.cvtColor(color_image, cv2.COLOR_BGR2LAB)  # convert from BGR to LAB color space
                     color_image_l, color_image_a, color_image_b = cv2.split(color_image_lab)  # split on 3 different channels
@@ -63,19 +67,26 @@ class FunmapRobot:
                 color_image = np.fliplr(color_image)
                 depth_image = np.moveaxis(depth_image, 0, 1)
                 depth_image = np.fliplr(depth_image)
+                color_aligned_to_depth_image = np.moveaxis(color_aligned_to_depth_image, 0, 1)
+                color_aligned_to_depth_image = np.fliplr(color_aligned_to_depth_image)
 
                 # Concatenate images horizontally
                 # Pad images if they are different heights
                 pad_y = color_image.shape[0] - depth_image.shape[0]
                 if pad_y > 0:
                     color_image_padded = color_image
+                    color_aligned_to_depth_image_padded = color_aligned_to_depth_image
                     depth_image_padded = np.pad(depth_image, ((pad_y, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
                 else:
                     pad_y = abs(pad_y)
                     color_image_padded = np.pad(color_image, ((pad_y, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    color_aligned_to_depth_image_padded = np.pad(color_aligned_to_depth_image, ((pad_y, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
                     depth_image_padded = depth_image
                 # Tile the images
-                colorAndDepth_image = np.hstack((color_image_padded, depth_image_padded))
+                if align:
+                    colorAndDepth_image = np.hstack((color_image_padded, color_aligned_to_depth_image, depth_image_padded))
+                else:
+                    colorAndDepth_image = np.hstack((color_image_padded, depth_image_padded))
 
                 # Show image in window
                 cv2.namedWindow('Head Cam', cv2.WINDOW_AUTOSIZE)
