@@ -122,21 +122,10 @@ def frustum(out, intrinsics, color=(0x40, 0x40, 0x40)):
         line3d(out, view(bottom_left), view(top_left), color)
 
 
-def pointcloud(out, verts, texcoords, color, painter=True):
-    """draw point cloud with optional painter's algorithm"""
-    if painter:
-        # Painter's algo, sort points from back to front
-
-        # get reverse sorted indices by z (in view-space)
-        # https://gist.github.com/stevenvo/e3dad127598842459b68
-        v = view(verts)
-        s = v[:, 2].argsort()[::-1]
-        proj = project(out, v[s])
-    else:
-        proj = project(out, view(verts))
-
-    if state.scale:
-        proj *= 0.5**state.decimate
+def pointcloud(out, points_arr):
+    """draw point cloud"""
+    verts = np.vstack((points_arr['x'], points_arr['y'], points_arr['z'])).T
+    proj = project(out, view(verts))
 
     h, w = out.shape[:2]
 
@@ -148,20 +137,8 @@ def pointcloud(out, verts, texcoords, color, painter=True):
     jm = (j >= 0) & (j < w)
     m = im & jm
 
-    cw, ch = color.shape[:2][::-1]
-    if painter:
-        # sort texcoord with same indices as above
-        # texcoords are [0..1] and relative to top-left pixel corner,
-        # multiply by size and add 0.5 to center
-        v, u = (texcoords[s] * (cw, ch) + 0.5).astype(np.uint32).T
-    else:
-        v, u = (texcoords * (cw, ch) + 0.5).astype(np.uint32).T
-    # clip texcoords to image
-    np.clip(u, 0, ch-1, out=u)
-    np.clip(v, 0, cw-1, out=v)
-
     # perform uv-mapping
-    out[i[m], j[m]] = color[u[m], v[m]]
+    out[i, j] = np.vstack((points_arr['b'], points_arr['g'], points_arr['r'])).T
 
 
 def mouse_cb(event, x, y, flags, param):

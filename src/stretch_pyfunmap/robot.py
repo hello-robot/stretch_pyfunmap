@@ -63,6 +63,26 @@ class FunmapRobot:
                     self._pc_creator.map_to(color_frame)
                     verts = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
                     texcoords = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
+                    cw, ch = color_image.shape[:2][::-1]
+                    v, u = (texcoords * (cw, ch) + 0.5).astype(np.uint32).T
+                    np.clip(u, 0, ch-1, out=u)
+                    np.clip(v, 0, cw-1, out=v)
+                    rgb = color_image[u, v]
+                    xyz = verts
+                    num_valid_points = xyz.shape[0]
+                    points_arr = np.zeros((num_valid_points,), dtype=[
+                                    ('x', np.float32),
+                                    ('y', np.float32),
+                                    ('z', np.float32),
+                                    ('r', np.uint8),
+                                    ('g', np.uint8),
+                                    ('b', np.uint8)])
+                    points_arr['x'] = xyz[:, 0]
+                    points_arr['y'] = xyz[:, 1]
+                    points_arr['z'] = xyz[:, 2]
+                    points_arr['r'] = rgb[:, 2]
+                    points_arr['g'] = rgb[:, 1]
+                    points_arr['b'] = rgb[:, 0]
 
                 # Create pointcloud image
                 if pointcloud:
@@ -70,7 +90,7 @@ class FunmapRobot:
                     # utils.grid(pc_image, (0, 0.5, 1))
                     # depth_intrinsics = rs.video_stream_profile(depth_frame.profile).get_intrinsics()
                     # utils.frustum(pc_image, depth_intrinsics)
-                    utils.pointcloud(pc_image, verts, texcoords, color_image)
+                    utils.pointcloud(pc_image, points_arr)
                     utils.axes(pc_image, utils.view([0, 0, 0]), utils.state.rotation, size=0.1, thickness=1)
 
                 # Apply histogram equalization if desired
