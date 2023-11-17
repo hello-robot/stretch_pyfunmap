@@ -9,14 +9,8 @@ import scipy.ndimage as nd
 
 import stretch_pyfunmap.merge_maps as mm
 import stretch_pyfunmap.navigation_planning as na
-import stretch_pyfunmap.ros_max_height_image as rm
+import stretch_pyfunmap.max_height_image as mhi
 import stretch_pyfunmap.segment_max_height_image as sm
-
-# import rospy
-# import ros_numpy
-# import tf_conversions
-# import hello_helpers.hello_misc as hm
-# from actionlib_msgs.msg import GoalStatus
 
 
 def stow_and_lower_arm(node):
@@ -247,7 +241,8 @@ def localize_with_reduced_images(head_scan, merged_map, global_localization=True
 
 
 class HeadScan:
-    def __init__(self, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
+    def __init__(self, robot, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
+        self.robot = robot
         self.max_height_im = max_height_im
         if self.max_height_im is None:
             # How to best set this volume of interest (VOI) merits further
@@ -284,17 +279,16 @@ class HeadScan:
             lowest_distance_below_ground = 0.05 #5cm
 
             total_height = robot_head_above_ground + lowest_distance_below_ground
-            # 8m x 8m region
             voi_side_m = voi_side_m
             voi_axes = np.identity(3)
             if voi_origin_m is None:
                 voi_origin_m = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -lowest_distance_below_ground])
-            voi = rm.ROSVolumeOfInterest('map', voi_origin_m, voi_axes, voi_side_m, voi_side_m, total_height)
+            voi = mhi.VolumeOfInterest('map', voi_origin_m, voi_axes, voi_side_m, voi_side_m, total_height)
 
             m_per_pix = 0.006
             pixel_dtype = np.uint8
 
-            self.max_height_im = rm.ROSMaxHeightImage(voi, m_per_pix, pixel_dtype, use_camera_depth_image=True)
+            self.max_height_im = mhi.MaxHeightImage(voi, m_per_pix, pixel_dtype, use_camera_depth_image=True)
             self.max_height_im.create_blank_rgb_image()
 
     def make_robot_footprint_unobserved(self):
@@ -305,37 +299,31 @@ class HeadScan:
         # replace robot points with unobserved points
         self.max_height_im.make_robot_mast_blind_spot_unobserved(self.robot_xy_pix[0], self.robot_xy_pix[1], self.robot_ang_rad)
 
-    def capture_point_clouds(self, node, pose, capture_params):
+    def capture_point_clouds(self, pose, capture_params):
         head_settle_time = capture_params['head_settle_time']
         num_point_clouds_per_pan_ang = capture_params['num_point_clouds_per_pan_ang']
         time_between_point_clouds = capture_params['time_between_point_clouds']
         fast_scan = capture_params.get('fast_scan', False)
-
         if fast_scan:
-            head_settle_time = head_settle_time
             num_point_clouds_per_pan_ang = 1
-            time_between_point_clouds = time_between_point_clouds
 
-        node.move_to_pose(pose)
+        self.robot.move_to_pose(pose)
         time.sleep(head_settle_time)
-        settle_time = time.time()
-        prev_cloud_time = None
-        num_point_clouds = 0
+
         # Consider using time stamps to make decisions, instead of
         # hard coded sleep times, as found in the head calibration
         # data collection code. The main issue is that the robot
         # needs time to mechanically settle in addition to sensor
         # timing considerations.
-        not_finished = num_point_clouds < num_point_clouds_per_pan_ang
-        while not_finished:
-            cloud_time, cloud_frame, cloud_arr = node.get_point_cloud()
-            if (cloud_time is not None) and (cloud_time != prev_cloud_time) and (cloud_time >= settle_time):
-                self.max_height_im.from_rgb_points_with_tinytf2(cloud_arr, cloud_frame, node.get_tf2_buffer())
+        prev_cloud_time = None
+        num_point_clouds = 0
+        while num_point_clouds < num_point_clouds_per_pan_ang:
+            time.sleep(time_between_point_clouds)
+            cloud_time, cloud_frame, cloud_arr = self.robot.get_point_cloud()
+            if (cloud_time is not None) and (cloud_time != prev_cloud_time):
+                self.max_height_im.from_rgb_points_with_tinytf2(cloud_arr, cloud_frame, self.robot.get_tf2_buffer())
                 num_point_clouds += 1
                 prev_cloud_time = cloud_time
-            not_finished = num_point_clouds < num_point_clouds_per_pan_ang
-            if not_finished:
-                time.sleep(time_between_point_clouds)
 
 
     def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node, look_at_self=True):
