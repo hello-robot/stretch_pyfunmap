@@ -375,7 +375,7 @@ class MaxHeightImage:
         self.transform_corrected_to_original = np.linalg.inv(transform_to_corrected)
 
     def save( self, base_filename, save_visualization=True ):
-        print('MaxHeightImage saving to base_filename =', base_filename)
+        print('MaxHeightImage.save INFO: saving to base_filename =', base_filename)
 
         max_pix = None
         if save_visualization:
@@ -406,7 +406,7 @@ class MaxHeightImage:
             cv2.imwrite(camera_depth_image_filename, self.camera_depth_image)
 
         image_filename = base_filename + '_image.npy.gz'
-        with open(image_filename, 'w') as fid:
+        with open(image_filename, 'wb') as fid:
             np.save(fid, self.image, allow_pickle=False, fix_imports=True)
 
         voi_data = self.voi.serialize()
@@ -451,7 +451,7 @@ class MaxHeightImage:
             data = yaml.load(fid)
 
         image_filename = data['image_filename']
-        with gzip.open(image_filename, 'r') as fid:
+        with gzip.open(image_filename, 'rb') as fid:
             image = np.load(fid)
 
         print('MaxHeightImage: Finished loading serialization data.')

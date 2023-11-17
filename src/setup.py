@@ -22,6 +22,6 @@ setuptools.setup(
         "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)"
     ],
     install_requires=[
-        'numpy', 'scikit-image', 'Cython', 'numba'
+        'numpy', 'scikit-image', 'Cython', 'numba', 'git+https://github.com/safijari/tiny_tf.git', 'urchin'
     ]
 )

@@ -1,10 +1,15 @@
 import sys
 import cv2
 import time
+import pathlib
 import numpy as np
-import stretch_body.robot
+from urchin import URDF
 import pyrealsense2 as rs
+import stretch_body.robot
+import stretch_body.hello_utils as hu
+from tiny_tf.tf import TFTree, Transform
 
+import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.utils as utils
 
 
@@ -36,6 +41,106 @@ class FunmapRobot:
             config.enable_stream(rs.stream.depth, resolution_depth[0], resolution_depth[1], rs.format.z16, fps)
             self.head_cam.start(config)
 
+        # setup Stretch's urdf
+        urdf_path = str((pathlib.Path(hu.get_fleet_directory()) / 'exported_urdf' / 'stretch.urdf').absolute())
+        self.urdf = URDF.load(urdf_path, lazy_load_meshes=True)
+
+    def _get_current_configuration(self):
+        def bound_range(name, value):
+            return min(max(value, self.urdf.joint_map[name].limit.lower), self.urdf.joint_map[name].limit.upper)
+
+        tool = self.body.end_of_arm.name
+        if tool == 'tool_stretch_gripper':
+            q_lift = bound_range('joint_lift', self.body.lift.status['pos'])
+            q_arml = bound_range('joint_arm_l0', self.body.arm.status['pos'] / 4.0)
+            q_yaw = bound_range('joint_wrist_yaw', self.body.end_of_arm.status['wrist_yaw']['pos'])
+            q_pan = bound_range('joint_head_pan', self.body.head.status['head_pan']['pos'])
+            q_tilt = bound_range('joint_head_tilt', self.body.head.status['head_tilt']['pos'])
+            return {
+                'joint_left_wheel': 0.0,
+                'joint_right_wheel': 0.0,
+                'joint_lift': q_lift,
+                'joint_arm_l0': q_arml,
+                'joint_arm_l1': q_arml,
+                'joint_arm_l2': q_arml,
+                'joint_arm_l3': q_arml,
+                'joint_wrist_yaw': q_yaw,
+                'joint_gripper_finger_left': 0.0,
+                'joint_gripper_finger_right': 0.0,
+                'joint_head_pan': q_pan,
+                'joint_head_tilt': q_tilt
+            }
+        elif tool == 'tool_stretch_dex_wrist':
+            q_lift = bound_range('joint_lift', self.body.lift.status['pos'])
+            q_arml = bound_range('joint_arm_l0', self.body.arm.status['pos'] / 4.0)
+            q_yaw = bound_range('joint_wrist_yaw', self.body.end_of_arm.status['wrist_yaw']['pos'])
+            q_pitch = bound_range('joint_wrist_pitch', self.body.end_of_arm.status['wrist_pitch']['pos'])
+            q_roll = bound_range('joint_wrist_roll', self.body.end_of_arm.status['wrist_roll']['pos'])
+            q_pan = bound_range('joint_head_pan', self.body.head.status['head_pan']['pos'])
+            q_tilt = bound_range('joint_head_tilt', self.body.head.status['head_tilt']['pos'])
+            return {
+                'joint_left_wheel': 0.0,
+                'joint_right_wheel': 0.0,
+                'joint_lift': q_lift,
+                'joint_arm_l0': q_arml,
+                'joint_arm_l1': q_arml,
+                'joint_arm_l2': q_arml,
+                'joint_arm_l3': q_arml,
+                'joint_wrist_yaw': q_yaw,
+                'joint_wrist_pitch': q_pitch,
+                'joint_wrist_roll': q_roll,
+                'joint_gripper_finger_left': 0.0,
+                'joint_gripper_finger_right': 0.0,
+                'joint_head_pan': q_pan,
+                'joint_head_tilt': q_tilt
+            }
+
+    def get_tf2_buffer(self):
+        tf2_buffer = TFTree()
+        q_curr = self._get_current_configuration()
+        fk_curr = self.urdf.link_fk(cfg=q_curr)
+        for l in self.urdf.links:
+            if l.name == "base_link":
+                continue
+            tf2_buffer.add_transform('base_link', l.name, Transform.from_matrix(fk_curr[l]))
+        tf2_buffer.add_transform('map', 'base_link', Transform())
+        return tf2_buffer
+
+    def get_point_cloud(self):
+        frames = self.head_cam.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        depth_frame = frames.get_depth_frame()
+        color_image = np.asanyarray(color_frame.get_data())
+        # depth_image = np.asanyarray(depth_frame.get_data())
+
+        self._pc_creator.map_to(color_frame)
+        points = self._pc_creator.calculate(depth_frame)
+        xyz = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
+        texcoords = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
+        cw, ch = color_image.shape[:2][::-1]
+        v_map = np.clip(texcoords[:,0] * cw + 1.5, 0, cw+1).astype(np.uint32)
+        u_map = np.clip(texcoords[:,1] * ch + 1.5, 0, ch+1).astype(np.uint32)
+        color_padded = np.pad(color_image, pad_width=[(1, 1),(1, 1),(0, 0)])
+        rgb = color_padded[u_map, v_map]
+
+        cloud_arr = np.zeros((points.size(),), dtype=[
+                        ('x', np.float32),
+                        ('y', np.float32),
+                        ('z', np.float32),
+                        ('r', np.uint8),
+                        ('g', np.uint8),
+                        ('b', np.uint8)])
+        cloud_arr['x'] = xyz[:, 0]
+        cloud_arr['y'] = xyz[:, 1]
+        cloud_arr['z'] = xyz[:, 2]
+        cloud_arr['r'] = rgb[:, 2]
+        cloud_arr['g'] = rgb[:, 1]
+        cloud_arr['b'] = rgb[:, 0]
+
+        cloud_time = time.time()
+        cloud_frame = 'camera_color_optical_frame'
+        return cloud_time, cloud_frame, cloud_arr
+
     def show_head_cam(self, hold=False, align=False, pointcloud=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN):
         try:
             while True:
@@ -58,32 +163,6 @@ class FunmapRobot:
                 if align:
                     color_aligned_to_depth_image = np.asanyarray(color_aligned_to_depth_frame.get_data())
 
-                # Create pointcloud
-                if pointcloud:
-                    self._pc_creator.map_to(color_frame)
-                    points = self._pc_creator.calculate(depth_frame)
-                    xyz = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
-                    texcoords = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
-                    cw, ch = color_image.shape[:2][::-1]
-                    v_map = np.clip(texcoords[:,0] * cw + 1.5, 0, cw+1).astype(np.uint32)
-                    u_map = np.clip(texcoords[:,1] * ch + 1.5, 0, ch+1).astype(np.uint32)
-                    color_padded = np.pad(color_image, pad_width=[(1, 1),(1, 1),(0, 0)])
-                    rgb = color_padded[u_map, v_map]
-
-                    cloud = np.zeros((points.size(),), dtype=[
-                                    ('x', np.float32),
-                                    ('y', np.float32),
-                                    ('z', np.float32),
-                                    ('r', np.uint8),
-                                    ('g', np.uint8),
-                                    ('b', np.uint8)])
-                    cloud['x'] = xyz[:, 0]
-                    cloud['y'] = xyz[:, 1]
-                    cloud['z'] = xyz[:, 2]
-                    cloud['r'] = rgb[:, 2]
-                    cloud['g'] = rgb[:, 1]
-                    cloud['b'] = rgb[:, 0]
-
                 # Create pointcloud image
                 if pointcloud:
                     pc_image = np.empty((depth_image.shape[0], depth_image.shape[1], 3), dtype=np.uint8)
@@ -91,7 +170,7 @@ class FunmapRobot:
                     # utils.grid(pc_image, (0, 0.5, 1))
                     # depth_intrinsics = rs.video_stream_profile(depth_frame.profile).get_intrinsics()
                     # utils.frustum(pc_image, depth_intrinsics)
-                    utils.pointcloud(pc_image, cloud)
+                    utils.pointcloud(pc_image, self.get_point_cloud()[2])
                     utils.axes(pc_image, utils.view([0, 0, 0]), utils.state.rotation, size=0.1, thickness=1)
 
                 # Apply histogram equalization if desired
@@ -142,40 +221,42 @@ class FunmapRobot:
         except KeyboardInterrupt:
             return
 
+    def move_to_pose(self, pose, return_before_done=False, custom_contact_thresholds=False):
+        if custom_contact_thresholds:
+            raise Exception('FunmapRobot.move_to_pose ERROR: I dont support contact thresholds yet')
+        print(f'Moving to {pose}')
+        if 'joint_lift' in pose:
+            self.body.lift.move_to(pose['joint_lift'])
+        if 'wrist_extension' in pose:
+            self.body.arm.move_to(pose['wrist_extension'])
+        self.body.push_command()
+        if 'joint_wrist_yaw' in pose:
+            self.body.end_of_arm.move_to('wrist_yaw', pose['joint_wrist_yaw'])
+        if 'joint_wrist_pitch' in pose:
+            self.body.end_of_arm.move_to('wrist_pitch', pose['joint_wrist_pitch'])
+        if 'joint_wrist_roll' in pose:
+            self.body.end_of_arm.move_to('wrist_roll', pose['joint_wrist_roll'])
+        if 'joint_head_pan' in pose:
+            self.body.head.move_to('head_pan', pose['joint_head_pan'])
+        if 'joint_head_tilt' in pose:
+            self.body.head.move_to('head_tilt', pose['joint_head_tilt'])
+        if 'joint_gripper_finger_left' in pose or 'joint_gripper_finger_right' in pose:
+            print('FunmapRobot.move_to_pose WARN: gripper not executing')
+        if not return_before_done:
+            print('FunmapRobot.move_to_pose WARN: return_before_done not supported, sleeping 1 second instead')
+            time.sleep(1)
+
     def head_scan(self, autoexposure_timeout=3.0):
-        color_frame = None
-        depth_frame = None
+        # Reduce occlusion from the arm and gripper
+        self.body.stow()
+
+        # Warm up camera's auto exposure
         start = time.time()
         print(f'INFO: wait {autoexposure_timeout} seconds for head cam autoexposure to adjust')
-        while (time.time() - start < autoexposure_timeout) or (not color_frame or not depth_frame):
-            # Get the latest frames from the camera
+        while (time.time() - start < autoexposure_timeout):
             frames = self.head_cam.wait_for_frames()
-            color_frame = frames.get_color_frame()
-            depth_frame = frames.get_depth_frame()
 
-        color_image = np.asanyarray(color_frame.get_data())
-        depth_image = np.asanyarray(depth_frame.get_data())
-
-        self._pc_creator.map_to(color_frame)
-        points = self._pc_creator.calculate(depth_frame)
-        xyz = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
-        texcoords = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
-        cw, ch = color_image.shape[:2][::-1]
-        v_map = np.clip(texcoords[:,0] * cw + 1.5, 0, cw+1).astype(np.uint32)
-        u_map = np.clip(texcoords[:,1] * ch + 1.5, 0, ch+1).astype(np.uint32)
-        color_padded = np.pad(color_image, pad_width=[(1, 1),(1, 1),(0, 0)])
-        rgb = color_padded[u_map, v_map]
-
-        points_arr = np.zeros((points.size(),), dtype=[
-                        ('x', np.float32),
-                        ('y', np.float32),
-                        ('z', np.float32),
-                        ('r', np.uint8),
-                        ('g', np.uint8),
-                        ('b', np.uint8)])
-        points_arr['x'] = xyz[:, 0]
-        points_arr['y'] = xyz[:, 1]
-        points_arr['z'] = xyz[:, 2]
-        points_arr['r'] = rgb[:, 2]
-        points_arr['g'] = rgb[:, 1]
-        points_arr['b'] = rgb[:, 0]
+        # Execute head scanning full procedure
+        head_scanner = ma.HeadScan(voi_side_m=16.0)
+        head_scanner.execute_full(self)
+        return head_scanner

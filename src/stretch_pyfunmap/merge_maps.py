@@ -15,7 +15,7 @@ import stretch_pyfunmap.max_height_image as mh
 import stretch_pyfunmap.navigation_planning as na
 from stretch_pyfunmap.numba_compare_images import numba_compare_images_2
 
-import tf_conversions
+# import tf_conversions
 import hello_helpers.hello_misc as hm
 
 

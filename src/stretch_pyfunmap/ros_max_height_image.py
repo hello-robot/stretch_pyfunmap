@@ -13,19 +13,19 @@ from scipy.spatial.transform import Rotation
 from stretch_pyfunmap.max_height_image import *
 import stretch_pyfunmap.navigation_planning as na
 
-import rospy
-import tf2_ros
-import ros_numpy
-import message_filters
-from std_msgs.msg import Header
-from sensor_msgs import point_cloud2
-from sensor_msgs.msg import PointCloud2, PointField
-from sensor_msgs.msg import Imu
-from sensor_msgs.msg import Image
-from visualization_msgs.msg import Marker
-from visualization_msgs.msg import MarkerArray
-from nav_msgs.msg import OccupancyGrid, MapMetaData
-from geometry_msgs.msg import Transform, Pose, Vector3, Quaternion, Point
+# import rospy
+# import tf2_ros
+# import ros_numpy
+# import message_filters
+# from std_msgs.msg import Header
+# from sensor_msgs import point_cloud2
+# from sensor_msgs.msg import PointCloud2, PointField
+# from sensor_msgs.msg import Imu
+# from sensor_msgs.msg import Image
+# from visualization_msgs.msg import Marker
+# from visualization_msgs.msg import MarkerArray
+# from nav_msgs.msg import OccupancyGrid, MapMetaData
+# from geometry_msgs.msg import Transform, Pose, Vector3, Quaternion, Point
 
 
 class ROSVolumeOfInterest(VolumeOfInterest):
@@ -43,6 +43,11 @@ class ROSVolumeOfInterest(VolumeOfInterest):
         if points_to_voi_mat is not None:
             voi_to_points_mat = np.linalg.inv(points_to_voi_mat)
         return voi_to_points_mat, timestamp
+
+    def get_points_to_voi_matrix_with_tinytf2(self, points_frame_id, tf2_buffer):
+        points_to_frame_id_mat = tf2_buffer.lookup_transform(self.frame_id, points_frame_id).matrix
+        points_to_voi_mat = self.get_points_to_voi_matrix(points_to_frame_id_mat)
+        return points_to_voi_mat
 
     def get_points_to_voi_matrix_with_tf2(self, points_frame_id, tf2_buffer, lookup_time=None, timeout_s=None):
         # If the necessary TF2 transform is successfully looked up,
@@ -127,6 +132,27 @@ class ROSMaxHeightImage(MaxHeightImage):
         return max_height_image
 
 
+    def get_points_to_image_mat_tinytf2(self, ros_frame_id, tf2_buffer):
+        points_to_voi_mat = self.voi.get_points_to_voi_matrix_with_tinytf2(ros_frame_id, tf2_buffer)
+        points_to_voi_mat[:3,3] = points_to_voi_mat[:3,3] - self.image_origin
+        voi_to_image_mat = np.identity(4)
+        voi_to_image_mat[0, 0] = 1.0/self.m_per_pix
+        voi_to_image_mat[1, 1] = - 1.0/self.m_per_pix
+        dtype = self.image.dtype
+        if np.issubdtype(dtype, np.integer):
+            voi_to_image_mat[2, 3] = 1.0
+            voi_to_image_mat[2, 2] = 1.0 / self.m_per_height_unit
+        else:
+            print('ROSMaxHeightImage.get_points_to_image_mat ERROR: unsupported image type used for max_height_image, dtype = {0}'.format(dtype))
+            assert(False)
+
+        points_to_image_mat = np.matmul(voi_to_image_mat, points_to_voi_mat)
+
+        if self.transform_original_to_corrected is not None:
+            points_to_image_mat = np.matmul(self.transform_original_to_corrected, points_to_image_mat)
+
+        return points_to_image_mat
+
     def get_points_to_image_mat(self, ros_frame_id, tf2_buffer, lookup_time=None, timeout_s=None):
         # This returns a matrix that transforms a point in the
         # provided ROS frame to a point in the image. However, it does
@@ -188,7 +214,7 @@ class ROSMaxHeightImage(MaxHeightImage):
 
 
     def get_robot_pose_in_image(self, tf2_buffer):
-        robot_to_image_mat, timestamp = self.get_points_to_image_mat('base_link', tf2_buffer)
+        robot_to_image_mat = self.get_points_to_image_mat_tinytf2('base_link', tf2_buffer)
         r0 = np.array([0.0, 0.0, 0.0, 1.0])
         r0 = np.matmul(robot_to_image_mat, r0)[:2]
         r1 = np.array([1.0, 0.0, 0.0, 1.0])
@@ -196,7 +222,7 @@ class ROSMaxHeightImage(MaxHeightImage):
         robot_forward = r1 - r0
         robot_ang_rad = np.arctan2(-robot_forward[1], robot_forward[0])
         robot_xy_pix = r0
-        return robot_xy_pix, robot_ang_rad, timestamp
+        return robot_xy_pix, robot_ang_rad
 
     def get_point_in_image(self, xyz, xyz_frame_id, tf2_buffer):
         point_to_image_mat, timestamp = self.get_points_to_image_mat(xyz_frame_id, tf2_buffer)
@@ -246,6 +272,10 @@ class ROSMaxHeightImage(MaxHeightImage):
                 self.last_update_time = points_timestamp
         else:
             rospy.logwarn('ROSMaxHeightImage.from_points_with_tf2: failed to update the image likely due to a failure to lookup the transform using TF2. points_frame_id = {0}, points_timestamp = {1}, timeout_s = {2}'.format(points_frame_id, points_timestamp, timeout_s))
+
+    def from_rgb_points_with_tinytf2(self, rgb_points, points_frame_id, tf2_buffer):
+        points_to_voi_mat = self.voi.get_points_to_voi_matrix_with_tinytf2(points_frame_id, tf2_buffer)
+        self.from_rgb_points(points_to_voi_mat, rgb_points)
 
     def from_rgb_points_with_tf2(self, rgb_points, points_frame_id, tf2_buffer, points_timestamp=None, timeout_s=None):
         # points should be a numpy array with shape = (N, 3) where N
