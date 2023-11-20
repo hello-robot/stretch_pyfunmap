@@ -321,22 +321,23 @@ class HeadScan:
             time.sleep(time_between_point_clouds)
             cloud_time, cloud_frame, cloud_arr = self.robot.get_point_cloud()
             if (cloud_time is not None) and (cloud_time != prev_cloud_time):
-                self.max_height_im.from_rgb_points_with_tinytf2(cloud_arr, cloud_frame, self.robot.get_tf2_buffer())
+                points_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, cloud_frame))
+                self.max_height_im.from_rgb_points(points_to_voi_mat, cloud_arr)
                 num_point_clouds += 1
                 prev_cloud_time = cloud_time
 
 
-    def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node, look_at_self=True):
+    def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, look_at_self=True):
         scan_start_time = time.time()
 
         pose = {'joint_head_pan': far_right_pan, 'joint_head_tilt': head_tilt}
-        node.move_to_pose(pose)
+        self.robot.move_to_pose(pose)
 
         pan_left = np.linspace(far_right_pan, far_left_pan, num_pan_steps)
 
         for pan_ang in pan_left:
             pose = {'joint_head_pan': pan_ang}
-            self.capture_point_clouds(node, pose, capture_params)
+            self.capture_point_clouds(pose, capture_params)
 
         # look at the ground right around the robot to detect any
         # nearby obstacles
@@ -347,7 +348,7 @@ class HeadScan:
             head_tilt = -1.2
             head_pan = 0.1
             pose = {'joint_head_pan': head_pan, 'joint_head_tilt': head_tilt}
-            self.capture_point_clouds(node, pose, capture_params)
+            self.capture_point_clouds(pose, capture_params)
 
         scan_end_time = time.time()
         scan_duration = scan_end_time - scan_start_time
@@ -355,24 +356,26 @@ class HeadScan:
 
         #####################################
         # record robot pose information and potentially useful transformations
-        self.robot_xy_pix, self.robot_ang_rad = self.max_height_im.get_robot_pose_in_image(node.get_tf2_buffer())
+        robot_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, 'base_link'))
+        robot_to_image_mat = self.max_height_im.get_points_to_image_mat(robot_to_voi_mat)
+        self.robot_xy_pix, self.robot_ang_rad = self.max_height_im.get_robot_pose_in_image(robot_to_image_mat)
 
         # Should only need three of these transforms, since the other
         # three should be obtainable via matrix inversion. Variation
         # in time could result in small differences due to encoder
         # noise.
-        # self.base_link_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('base_link', node.get_tf2_buffer())
-        # self.base_link_to_map_mat, timestamp = hm.get_p1_to_p2_matrix('base_link', 'map', node.get_tf2_buffer())
-        # self.image_to_map_mat, timestamp = self.max_height_im.get_image_to_points_mat('map', node.get_tf2_buffer())
-        # self.image_to_base_link_mat, timestamp = self.max_height_im.get_image_to_points_mat('base_link', node.get_tf2_buffer())
-        # self.map_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('map', node.get_tf2_buffer())
-        # self.map_to_base_mat, timestamp = hm.get_p1_to_p2_matrix('map', 'base_link', node.get_tf2_buffer())
+        # self.base_link_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('base_link', node.tf2_buffer)
+        # self.base_link_to_map_mat, timestamp = hm.get_p1_to_p2_matrix('base_link', 'map', node.tf2_buffer)
+        # self.image_to_map_mat, timestamp = self.max_height_im.get_image_to_points_mat('map', node.tf2_buffer)
+        # self.image_to_base_link_mat, timestamp = self.max_height_im.get_image_to_points_mat('base_link', node.tf2_buffer)
+        # self.map_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('map', node.tf2_buffer)
+        # self.map_to_base_mat, timestamp = hm.get_p1_to_p2_matrix('map', 'base_link', node.tf2_buffer)
 
         self.make_robot_mast_blind_spot_unobserved()
         self.make_robot_footprint_unobserved()
 
 
-    def execute_full(self, node, fast_scan=False):
+    def execute_full(self, fast_scan=False):
         far_right_pan = -3.6
         far_left_pan = 1.45
         head_tilt = -0.8
@@ -388,10 +391,10 @@ class HeadScan:
             'time_between_point_clouds': 1.0/15.0 # point clouds at 15 Hz, so this should help obtain distinct clouds
         }
 
-        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node)
+        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params)
 
 
-    def execute_front(self, node, fast_scan=False):
+    def execute_front(self, fast_scan=False):
         far_right_pan = -1.2
         far_left_pan = 1.2
         head_tilt = -0.8
@@ -404,10 +407,10 @@ class HeadScan:
             'time_between_point_clouds': 1.0/15.0 # point clouds at 15 Hz, so this should help obtain distinct clouds
         }
 
-        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node)
+        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params)
 
 
-    def execute_minimal(self, node, fast_scan=False):
+    def execute_minimal(self, fast_scan=False):
         far_right_pan = 0.1
         far_left_pan = 0.1
         head_tilt = -0.8
@@ -422,11 +425,11 @@ class HeadScan:
             'time_between_point_clouds': 1.0/15.0 # point clouds at 15 Hz, so this should help obtain distinct clouds
         }
 
-        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node, look_at_self)
+        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, look_at_self)
 
 
-    def save( self, base_filename, save_visualization=True ):
-        print('HeadScan.save INFO: Saving to base_filename =', base_filename)
+    def save(self, base_filename, save_visualization=True):
+        print(f'HeadScan.save INFO: Saving to base_filename = {base_filename}')
         # save scan to disk
         max_height_image_base_filename = base_filename + '_mhi'
         self.max_height_im.save(max_height_image_base_filename)
@@ -449,7 +452,6 @@ class HeadScan:
 
         with open(base_filename + '.yaml', 'w') as fid:
             yaml.dump(data, fid)
-        print('Finished saving.')
 
 
     @classmethod

@@ -15,7 +15,7 @@ import stretch_pyfunmap.utils as utils
 
 class FunmapRobot:
 
-    def __init__(self, body=None, head_cam=None):
+    def __init__(self, body=None, head_cam=None, autoexposure_timeout=3.0):
         # setup Stretch's body
         self.body = body
         if self.body is None:
@@ -23,6 +23,11 @@ class FunmapRobot:
             did_start = self.body.startup()
             if not did_start:
                 print('CRITICAL: hardware failed to initialize completely')
+                self.body.stop()
+                sys.exit(1)
+            is_runstopped = self.body.status['pimu']['runstop_event']
+            if is_runstopped:
+                print('CRITICAL: unable to create FunmapRobot while Stretch is runstopped')
                 self.body.stop()
                 sys.exit(1)
         if not self.body.is_calibrated():
@@ -40,6 +45,12 @@ class FunmapRobot:
             config.enable_stream(rs.stream.color, resolution_color[0], resolution_color[1], rs.format.bgr8, fps)
             config.enable_stream(rs.stream.depth, resolution_depth[0], resolution_depth[1], rs.format.z16, fps)
             self.head_cam.start(config)
+
+            # Warm up camera's auto exposure
+            start = time.time()
+            print(f'FunmapRobot.__init__ DEBUG: waiting {autoexposure_timeout} seconds for head cam autoexposure to adjust')
+            while (time.time() - start < autoexposure_timeout):
+                self.head_cam.wait_for_frames()
 
         # setup Stretch's urdf
         urdf_path = str((pathlib.Path(hu.get_fleet_directory()) / 'exported_urdf' / 'stretch.urdf').absolute())
@@ -95,16 +106,26 @@ class FunmapRobot:
                 'joint_head_tilt': q_tilt
             }
 
-    def get_tf2_buffer(self):
-        tf2_buffer = TFTree()
+    def get_transform(self, from_frame, to_frame):
         q_curr = self._get_current_configuration()
         fk_curr = self.urdf.link_fk(cfg=q_curr)
+
+        # get frames w.r.t. base link
+        baselink_to_fromframe = None
+        baselink_to_toframe = None
         for l in self.urdf.links:
-            if l.name == "base_link":
-                continue
-            tf2_buffer.add_transform('base_link', l.name, Transform.from_matrix(fk_curr[l]))
-        tf2_buffer.add_transform('map', 'base_link', Transform())
-        return tf2_buffer
+            if l.name == from_frame:
+                baselink_to_fromframe = fk_curr[l]
+            if l.name == to_frame:
+                baselink_to_toframe = fk_curr[l]
+        if from_frame == 'map':
+            baselink_to_fromframe = np.eye(4)
+        if to_frame == 'map':
+            baselink_to_toframe = np.eye(4)
+
+        # calculate to_frame w.r.t from_frame
+        fromframe_to_toframe = np.linalg.inv(baselink_to_fromframe).dot(baselink_to_toframe)
+        return fromframe_to_toframe
 
     def get_point_cloud(self):
         frames = self.head_cam.wait_for_frames()
@@ -246,17 +267,11 @@ class FunmapRobot:
             print('FunmapRobot.move_to_pose WARN: return_before_done not supported, sleeping 1 second instead')
             time.sleep(1)
 
-    def head_scan(self, autoexposure_timeout=3.0):
+    def perform_head_scan(self, autoexposure_timeout=3.0):
         # Reduce occlusion from the arm and gripper
         self.body.stow()
 
-        # Warm up camera's auto exposure
-        start = time.time()
-        print(f'INFO: wait {autoexposure_timeout} seconds for head cam autoexposure to adjust')
-        while (time.time() - start < autoexposure_timeout):
-            frames = self.head_cam.wait_for_frames()
-
         # Execute head scanning full procedure
-        head_scanner = ma.HeadScan(voi_side_m=16.0)
-        head_scanner.execute_full(self)
+        head_scanner = ma.HeadScan(self, voi_side_m=16.0)
+        head_scanner.execute_full()
         return head_scanner
