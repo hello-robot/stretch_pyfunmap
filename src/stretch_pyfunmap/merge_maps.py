@@ -15,9 +15,6 @@ import stretch_pyfunmap.max_height_image as mh
 import stretch_pyfunmap.navigation_planning as na
 from stretch_pyfunmap.numba_compare_images import numba_compare_images_2
 
-import tf_conversions
-import hello_helpers.hello_misc as hm
-
 
 def affine_transform_2d_point(affine_matrix, point):
     affine_point = np.ones(3)
@@ -410,7 +407,7 @@ def estimate_scan_1_to_scan_2_transform(scan_1, scan_2, display_on=False, show_u
     a = p['theta_rad']
     map_x, map_y, map_ang_rad = transform_xya_to_xya_3d(scan_2.image_to_map_mat, x1, y1, a)
     map_xy_1 = np.array([map_x, map_y])
-    map_quat = tf_conversions.transformations.quaternion_from_euler(0, 0, map_ang_rad)
+    map_quat = np.array([0, 0, math.sin(map_ang_rad / 2), math.cos(map_ang_rad / 2)]) # [q_x, q_y, q_z, q_w]
     print('map_xy_1 =', map_xy_1)
     print('map_ang_rad =', map_ang_rad)
     print('map_quat =', map_quat)

@@ -9,14 +9,8 @@ import scipy.ndimage as nd
 
 import stretch_pyfunmap.merge_maps as mm
 import stretch_pyfunmap.navigation_planning as na
-import stretch_pyfunmap.ros_max_height_image as rm
+import stretch_pyfunmap.max_height_image as mhi
 import stretch_pyfunmap.segment_max_height_image as sm
-
-import rospy
-import ros_numpy
-import tf_conversions
-import hello_helpers.hello_misc as hm
-from actionlib_msgs.msg import GoalStatus
 
 
 def stow_and_lower_arm(node):
@@ -247,10 +241,10 @@ def localize_with_reduced_images(head_scan, merged_map, global_localization=True
 
 
 class HeadScan:
-    def __init__(self, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
-        if max_height_im is not None:
-            self.max_height_im = max_height_im
-        else:
+    def __init__(self, robot, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
+        self.robot = robot
+        self.max_height_im = max_height_im
+        if self.max_height_im is None:
             # How to best set this volume of interest (VOI) merits further
             # consideration. Note that representing a smaller range of heights
             # results in higher height resolution when using np.uint8
@@ -262,7 +256,6 @@ class HeadScan:
             # manipulable surfaces. Also, when the top of the viewing frustum
             # is parallel to the ground it will be at or close to the top of
             # the volume of interest.
-
             robot_head_above_ground = 1.13
 
             # How far below the expected floor height the volume of interest
@@ -283,25 +276,20 @@ class HeadScan:
             # will be classified as traversable floor. This risk is mitigated
             # by separate point cloud based obstacle detection while moving
             # and cliff sensors.
-
             lowest_distance_below_ground = 0.05 #5cm
 
             total_height = robot_head_above_ground + lowest_distance_below_ground
-            # 8m x 8m region
             voi_side_m = voi_side_m
             voi_axes = np.identity(3)
             if voi_origin_m is None:
-                voi_origin = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -lowest_distance_below_ground])
-            voi = rm.ROSVolumeOfInterest('map', voi_origin, voi_axes, voi_side_m, voi_side_m, total_height)
+                voi_origin_m = np.array([-voi_side_m/2.0, -voi_side_m/2.0, -lowest_distance_below_ground])
+            voi = mhi.VolumeOfInterest('map', voi_origin_m, voi_axes, voi_side_m, voi_side_m, total_height)
 
             m_per_pix = 0.006
             pixel_dtype = np.uint8
 
-            self.max_height_im = rm.ROSMaxHeightImage(voi, m_per_pix, pixel_dtype, use_camera_depth_image=True)
+            self.max_height_im = mhi.MaxHeightImage(voi, m_per_pix, pixel_dtype, use_camera_depth_image=True)
             self.max_height_im.create_blank_rgb_image()
-
-        self.max_height_im.print_info()
-
 
     def make_robot_footprint_unobserved(self):
         # replace robot points with unobserved points
@@ -311,58 +299,45 @@ class HeadScan:
         # replace robot points with unobserved points
         self.max_height_im.make_robot_mast_blind_spot_unobserved(self.robot_xy_pix[0], self.robot_xy_pix[1], self.robot_ang_rad)
 
-    def capture_point_clouds(self, node, pose, capture_params):
+    def capture_point_clouds(self, pose, capture_params):
         head_settle_time = capture_params['head_settle_time']
         num_point_clouds_per_pan_ang = capture_params['num_point_clouds_per_pan_ang']
         time_between_point_clouds = capture_params['time_between_point_clouds']
         fast_scan = capture_params.get('fast_scan', False)
-
         if fast_scan:
-            head_settle_time = head_settle_time
             num_point_clouds_per_pan_ang = 1
-            time_between_point_clouds = time_between_point_clouds
 
-        node.move_to_pose(pose)
-        rospy.sleep(head_settle_time)
-        settle_time = rospy.Time.now()
-        prev_cloud_time = None
-        num_point_clouds = 0
+        self.robot.move_to_pose(pose)
+        time.sleep(head_settle_time)
+
         # Consider using time stamps to make decisions, instead of
         # hard coded sleep times, as found in the head calibration
         # data collection code. The main issue is that the robot
         # needs time to mechanically settle in addition to sensor
         # timing considerations.
-        not_finished = num_point_clouds < num_point_clouds_per_pan_ang
-        while not_finished:
-            cloud_time = node.point_cloud.header.stamp
-            cloud_frame = node.point_cloud.header.frame_id
-            point_cloud = ros_numpy.numpify(node.point_cloud)
-            if (cloud_time is not None) and (cloud_time != prev_cloud_time) and (cloud_time >= settle_time):
-                only_xyz = False
-                if only_xyz:
-                    xyz = ros_numpy.point_cloud2.get_xyz_points(point_cloud)
-                    self.max_height_im.from_points_with_tf2(xyz, cloud_frame, node.tf2_buffer)
-                else:
-                    rgb_points = ros_numpy.point_cloud2.split_rgb_field(point_cloud)
-                    self.max_height_im.from_rgb_points_with_tf2(rgb_points, cloud_frame, node.tf2_buffer)
+        prev_cloud_time = None
+        num_point_clouds = 0
+        while num_point_clouds < num_point_clouds_per_pan_ang:
+            time.sleep(time_between_point_clouds)
+            cloud_time, cloud_frame, cloud_arr = self.robot.get_point_cloud()
+            if (cloud_time is not None) and (cloud_time != prev_cloud_time):
+                points_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, cloud_frame))
+                self.max_height_im.from_rgb_points(points_to_voi_mat, cloud_arr)
                 num_point_clouds += 1
                 prev_cloud_time = cloud_time
-            not_finished = num_point_clouds < num_point_clouds_per_pan_ang
-            if not_finished:
-                rospy.sleep(time_between_point_clouds)
 
 
-    def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node, look_at_self=True):
+    def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, look_at_self=True):
         scan_start_time = time.time()
 
         pose = {'joint_head_pan': far_right_pan, 'joint_head_tilt': head_tilt}
-        node.move_to_pose(pose)
+        self.robot.move_to_pose(pose)
 
         pan_left = np.linspace(far_right_pan, far_left_pan, num_pan_steps)
 
         for pan_ang in pan_left:
             pose = {'joint_head_pan': pan_ang}
-            self.capture_point_clouds(node, pose, capture_params)
+            self.capture_point_clouds(pose, capture_params)
 
         # look at the ground right around the robot to detect any
         # nearby obstacles
@@ -373,32 +348,34 @@ class HeadScan:
             head_tilt = -1.2
             head_pan = 0.1
             pose = {'joint_head_pan': head_pan, 'joint_head_tilt': head_tilt}
-            self.capture_point_clouds(node, pose, capture_params)
+            self.capture_point_clouds(pose, capture_params)
 
         scan_end_time = time.time()
         scan_duration = scan_end_time - scan_start_time
-        rospy.loginfo('The head scan took {0} seconds.'.format(scan_duration))
+        print(f'HeadScan.execute INFO: The head scan took {scan_duration} seconds.')
 
         #####################################
         # record robot pose information and potentially useful transformations
-        self.robot_xy_pix, self.robot_ang_rad, self.timestamp = self.max_height_im.get_robot_pose_in_image(node.tf2_buffer)
+        robot_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, 'base_link'))
+        robot_to_image_mat = self.max_height_im.get_points_to_image_mat(robot_to_voi_mat)
+        self.robot_xy_pix, self.robot_ang_rad = self.max_height_im.get_robot_pose_in_image(robot_to_image_mat)
 
         # Should only need three of these transforms, since the other
         # three should be obtainable via matrix inversion. Variation
         # in time could result in small differences due to encoder
         # noise.
-        self.base_link_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('base_link', node.tf2_buffer)
-        self.base_link_to_map_mat, timestamp = hm.get_p1_to_p2_matrix('base_link', 'map', node.tf2_buffer)
-        self.image_to_map_mat, timestamp = self.max_height_im.get_image_to_points_mat('map', node.tf2_buffer)
-        self.image_to_base_link_mat, timestamp = self.max_height_im.get_image_to_points_mat('base_link', node.tf2_buffer)
-        self.map_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('map', node.tf2_buffer)
-        self.map_to_base_mat, timestamp = hm.get_p1_to_p2_matrix('map', 'base_link', node.tf2_buffer)
+        # self.base_link_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('base_link', node.tf2_buffer)
+        # self.base_link_to_map_mat, timestamp = hm.get_p1_to_p2_matrix('base_link', 'map', node.tf2_buffer)
+        # self.image_to_map_mat, timestamp = self.max_height_im.get_image_to_points_mat('map', node.tf2_buffer)
+        # self.image_to_base_link_mat, timestamp = self.max_height_im.get_image_to_points_mat('base_link', node.tf2_buffer)
+        # self.map_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('map', node.tf2_buffer)
+        # self.map_to_base_mat, timestamp = hm.get_p1_to_p2_matrix('map', 'base_link', node.tf2_buffer)
 
         self.make_robot_mast_blind_spot_unobserved()
         self.make_robot_footprint_unobserved()
 
 
-    def execute_full(self, node, fast_scan=False):
+    def execute_full(self, fast_scan=False):
         far_right_pan = -3.6
         far_left_pan = 1.45
         head_tilt = -0.8
@@ -414,10 +391,10 @@ class HeadScan:
             'time_between_point_clouds': 1.0/15.0 # point clouds at 15 Hz, so this should help obtain distinct clouds
         }
 
-        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node)
+        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params)
 
 
-    def execute_front(self, node, fast_scan=False):
+    def execute_front(self, fast_scan=False):
         far_right_pan = -1.2
         far_left_pan = 1.2
         head_tilt = -0.8
@@ -430,10 +407,10 @@ class HeadScan:
             'time_between_point_clouds': 1.0/15.0 # point clouds at 15 Hz, so this should help obtain distinct clouds
         }
 
-        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node)
+        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params)
 
 
-    def execute_minimal(self, node, fast_scan=False):
+    def execute_minimal(self, fast_scan=False):
         far_right_pan = 0.1
         far_left_pan = 0.1
         head_tilt = -0.8
@@ -448,11 +425,11 @@ class HeadScan:
             'time_between_point_clouds': 1.0/15.0 # point clouds at 15 Hz, so this should help obtain distinct clouds
         }
 
-        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, node, look_at_self)
+        self.execute(head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, look_at_self)
 
 
-    def save( self, base_filename, save_visualization=True ):
-        print('HeadScan: Saving to base_filename =', base_filename)
+    def save(self, base_filename, save_visualization=True):
+        print(f'HeadScan.save INFO: Saving to base_filename = {base_filename}')
         # save scan to disk
         max_height_image_base_filename = base_filename + '_mhi'
         self.max_height_im.save(max_height_image_base_filename)
@@ -464,17 +441,17 @@ class HeadScan:
         data = {'max_height_image_base_filename' : max_height_image_base_filename,
                 'robot_xy_pix' : self.robot_xy_pix.tolist(),
                 'robot_ang_rad' : robot_ang_rad,
-                'timestamp' : {'secs':self.timestamp.secs, 'nsecs':self.timestamp.nsecs},
-                'base_link_to_image_mat' : self.base_link_to_image_mat.tolist(),
-                'base_link_to_map_mat' : self.base_link_to_map_mat.tolist(),
-                'image_to_map_mat' : self.image_to_map_mat.tolist(),
-                'image_to_base_link_mat' : self.image_to_base_link_mat.tolist(),
-                'map_to_image_mat' : self.map_to_image_mat.tolist(),
-                'map_to_base_mat' : self.map_to_base_mat.tolist()}
+                # 'timestamp' : {'secs':self.timestamp.secs, 'nsecs':self.timestamp.nsecs},
+                # 'base_link_to_image_mat' : self.base_link_to_image_mat.tolist(),
+                # 'base_link_to_map_mat' : self.base_link_to_map_mat.tolist(),
+                # 'image_to_map_mat' : self.image_to_map_mat.tolist(),
+                # 'image_to_base_link_mat' : self.image_to_base_link_mat.tolist(),
+                # 'map_to_image_mat' : self.map_to_image_mat.tolist(),
+                # 'map_to_base_mat' : self.map_to_base_mat.tolist()}
+        }
 
         with open(base_filename + '.yaml', 'w') as fid:
             yaml.dump(data, fid)
-        print('Finished saving.')
 
 
     @classmethod

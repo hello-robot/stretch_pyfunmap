@@ -11,7 +11,6 @@ from collections import deque
 from scipy.spatial.transform import Rotation
 
 from stretch_pyfunmap.max_height_image import *
-import stretch_pyfunmap.navigation_planning as na
 
 import rospy
 import tf2_ros
@@ -207,23 +206,6 @@ class ROSMaxHeightImage(MaxHeightImage):
         image_to_point_mat, timestamp = self.get_image_to_points_mat(xyz_frame_id, tf2_buffer)
         p = np.matmul(image_to_point_mat, np.array([xyz_pix[0], xyz_pix[1], xyz_pix[2], 1.0]))[:3]
         return p
-
-    def make_robot_footprint_unobserved(self, robot_x_pix, robot_y_pix, robot_ang_rad):
-        # replace robot points with unobserved points
-        na.draw_robot_footprint_rectangle(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.image, value=0)
-        if self.camera_depth_image is not None:
-            na.draw_robot_footprint_rectangle(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.camera_depth_image, value=0)
-        if self.rgb_image is not None:
-            na.draw_robot_footprint_rectangle(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.rgb_image, value=0)
-
-
-    def make_robot_mast_blind_spot_unobserved(self, robot_x_pix, robot_y_pix, robot_ang_rad):
-        # replace mast blind spot wedge points with unobserved points
-        na.draw_robot_mast_blind_spot_wedge(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.image, value=0)
-        if self.camera_depth_image is not None:
-            na.draw_robot_mast_blind_spot_wedge(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.camera_depth_image, value=0)
-        if self.rgb_image is not None:
-            na.draw_robot_mast_blind_spot_wedge(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.rgb_image, value=0)
 
     def from_points_with_tf2(self, points, points_frame_id, tf2_buffer, points_timestamp=None, timeout_s=None):
         # points should be a numpy array with shape = (N, 3) where N

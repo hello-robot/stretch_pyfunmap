@@ -12,6 +12,7 @@ from copy import deepcopy
 from collections import deque
 from scipy.spatial.transform import Rotation
 
+import stretch_pyfunmap.navigation_planning as na
 import stretch_pyfunmap.numba_height_image as nh
 from stretch_pyfunmap.numba_create_plane_image import numba_create_plane_image, numba_correct_height_image, transform_original_to_corrected, transform_corrected_to_original
 
@@ -374,8 +375,8 @@ class MaxHeightImage:
         self.transform_original_to_corrected = transform_to_corrected
         self.transform_corrected_to_original = np.linalg.inv(transform_to_corrected)
 
-    def save( self, base_filename, save_visualization=True ):
-        print('MaxHeightImage saving to base_filename =', base_filename)
+    def save(self, base_filename, save_visualization=True):
+        print(f'MaxHeightImage.save INFO: saving to base_filename = {base_filename}')
 
         max_pix = None
         if save_visualization:
@@ -406,7 +407,7 @@ class MaxHeightImage:
             cv2.imwrite(camera_depth_image_filename, self.camera_depth_image)
 
         image_filename = base_filename + '_image.npy.gz'
-        with open(image_filename, 'w') as fid:
+        with open(image_filename, 'wb') as fid:
             np.save(fid, self.image, allow_pickle=False, fix_imports=True)
 
         voi_data = self.voi.serialize()
@@ -451,7 +452,7 @@ class MaxHeightImage:
             data = yaml.load(fid)
 
         image_filename = data['image_filename']
-        with gzip.open(image_filename, 'r') as fid:
+        with gzip.open(image_filename, 'rb') as fid:
             image = np.load(fid)
 
         print('MaxHeightImage: Finished loading serialization data.')
@@ -500,6 +501,61 @@ class MaxHeightImage:
         max_height_image.transform_corrected_to_original = transform_corrected_to_original
 
         return max_height_image
+
+
+    def get_points_to_image_mat(self, points_to_voi_mat):
+        # This returns a matrix that transforms a point in the
+        # provided ROS frame to a point in the image. However, it does
+        # not quantize the components of the image point, which is a
+        # nonlinear operation that must be performed as a separate
+        # step.
+        points_to_voi_mat[:3,3] = points_to_voi_mat[:3,3] - self.image_origin
+        voi_to_image_mat = np.identity(4)
+        voi_to_image_mat[0, 0] = 1.0/self.m_per_pix
+        voi_to_image_mat[1, 1] = - 1.0/self.m_per_pix
+        dtype = self.image.dtype
+        if np.issubdtype(dtype, np.integer):
+            voi_to_image_mat[2, 3] = 1.0
+            voi_to_image_mat[2, 2] = 1.0 / self.m_per_height_unit
+        else:
+            rospy.logerr('MaxHeightImage.get_points_to_image_mat: unsupported image type used for max_height_image, dtype = {0}'.format(dtype))
+            assert(False)
+
+        points_to_image_mat = np.matmul(voi_to_image_mat, points_to_voi_mat)
+
+        if self.transform_original_to_corrected is not None:
+            points_to_image_mat = np.matmul(self.transform_original_to_corrected, points_to_image_mat)
+
+        return points_to_image_mat
+
+
+    def get_robot_pose_in_image(self, robot_to_image_mat):
+        r0 = np.array([0.0, 0.0, 0.0, 1.0])
+        r0 = np.matmul(robot_to_image_mat, r0)[:2]
+        r1 = np.array([1.0, 0.0, 0.0, 1.0])
+        r1 = np.matmul(robot_to_image_mat, r1)[:2]
+        robot_forward = r1 - r0
+        robot_ang_rad = np.arctan2(-robot_forward[1], robot_forward[0])
+        robot_xy_pix = r0
+        return robot_xy_pix, robot_ang_rad
+
+
+    def make_robot_footprint_unobserved(self, robot_x_pix, robot_y_pix, robot_ang_rad):
+        # replace robot points with unobserved points
+        na.draw_robot_footprint_rectangle(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.image, value=0)
+        if self.camera_depth_image is not None:
+            na.draw_robot_footprint_rectangle(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.camera_depth_image, value=0)
+        if self.rgb_image is not None:
+            na.draw_robot_footprint_rectangle(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.rgb_image, value=0)
+
+
+    def make_robot_mast_blind_spot_unobserved(self, robot_x_pix, robot_y_pix, robot_ang_rad):
+        # replace mast blind spot wedge points with unobserved points
+        na.draw_robot_mast_blind_spot_wedge(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.image, value=0)
+        if self.camera_depth_image is not None:
+            na.draw_robot_mast_blind_spot_wedge(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.camera_depth_image, value=0)
+        if self.rgb_image is not None:
+            na.draw_robot_mast_blind_spot_wedge(robot_x_pix, robot_y_pix, robot_ang_rad, self.m_per_pix, self.rgb_image, value=0)
 
 
     def to_points(self, colormap=None, substitute_image=None):
