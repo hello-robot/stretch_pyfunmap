@@ -1,15 +1,16 @@
 import sys
 import cv2
 import time
+import atexit
 import pathlib
 import numpy as np
 from urchin import URDF
 import pyrealsense2 as rs
 import stretch_body.robot
 import stretch_body.hello_utils as hu
-from tiny_tf.tf import TFTree, Transform
 
 import stretch_pyfunmap.mapping as ma
+import stretch_pyfunmap.networking as net
 import stretch_pyfunmap.utils as utils
 
 
@@ -55,6 +56,16 @@ class FunmapRobot:
         # setup Stretch's urdf
         urdf_path = str((pathlib.Path(hu.get_fleet_directory()) / 'exported_urdf' / 'stretch.urdf').absolute())
         self.urdf = URDF.load(urdf_path, lazy_load_meshes=True)
+
+        # setup networking
+        self._net_process = net.start_networking()
+
+        # setup teardown handler
+        def teardown():
+            self.body.stop()
+            self._net_process.terminate()
+            self._net_process.join()
+        atexit.register(teardown)
 
     def _get_current_configuration(self):
         def bound_range(name, value):
