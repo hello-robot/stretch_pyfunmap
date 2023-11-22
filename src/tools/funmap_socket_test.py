@@ -6,8 +6,8 @@ import stretch_pyfunmap.robot
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 
-robot = stretch_pyfunmap.robot.FunmapRobot()
-app = Flask(__name__)
+robot = stretch_pyfunmap.robot.FunmapRobot(enable_networking=False)
+app = Flask(__name__, template_folder='../../viz/static')
 socketio = SocketIO(app)
 
 values = {
