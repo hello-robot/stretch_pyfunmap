@@ -8,6 +8,7 @@ from urchin import URDF
 import pyrealsense2 as rs
 import stretch_body.robot
 import stretch_body.hello_utils as hu
+from multiprocessing import shared_memory
 
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.networking as net
@@ -16,7 +17,7 @@ import stretch_pyfunmap.utils as utils
 
 class FunmapRobot:
 
-    def __init__(self, body=None, head_cam=None, autoexposure_timeout=3.0):
+    def __init__(self, body=None, head_cam=None, autoexposure_timeout=3.0, enable_networking=True):
         # setup Stretch's body
         self.body = body
         if self.body is None:
@@ -58,13 +59,22 @@ class FunmapRobot:
         self.urdf = URDF.load(urdf_path, lazy_load_meshes=True)
 
         # setup networking
-        self._net_process = net.start_networking()
+        shared_mem_blueprint = [('shmcolorimagenp', 'uint8', (720, 1280, 3), 2764800)]
+        self._net_internals = net.start_networking(shared_mem_blueprint, self) if enable_networking else None
 
         # setup teardown handler
         def teardown():
             self.body.stop()
-            self._net_process.terminate()
-            self._net_process.join()
+            if self._net_internals:
+                flask_process, shm_serve_thread, shm_serve_thread_shutdown_flag = self._net_internals
+                shm_serve_thread_shutdown_flag.set()
+                shm_serve_thread.join()
+                flask_process.terminate()
+                flask_process.join()
+                for shm_name, _, _, _ in shared_mem_blueprint:
+                    shm = shared_memory.SharedMemory(name=shm_name)
+                    shm.close()
+                    shm.unlink()
         atexit.register(teardown)
 
     def _get_current_configuration(self):
