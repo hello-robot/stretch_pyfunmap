@@ -22,6 +22,7 @@ setuptools.setup(
         "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)"
     ],
     install_requires=[
-        'numpy', 'scikit-image', 'Cython', 'numba', 'urchin', 'flask', 'flask-socketio'
+        'numpy', 'scikit-image', 'Cython', 'numba', 'urchin', 'flask', 'flask-socketio',
+        'pyrealsense2', 'opencv-contrib-python', 'hello-robot-stretch-body'
     ]
 )
