@@ -10,8 +10,6 @@ import stretch_pyfunmap.segment_max_height_image as sm
 from stretch_pyfunmap.numba_check_line_path import numba_check_line_path
 from stretch_pyfunmap.numba_sample_ridge import numba_sample_ridge, numba_sample_ridge_list
 
-import hello_helpers.hello_misc as hm
-
 
 ####################################################
 # DISPLAY FUNCTIONS

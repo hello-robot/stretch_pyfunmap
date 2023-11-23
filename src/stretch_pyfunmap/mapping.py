@@ -467,7 +467,7 @@ class HeadScan:
 
         head_scan.robot_xy_pix = np.array(data['robot_xy_pix'])
         head_scan.robot_ang_rad = data['robot_ang_rad']
-        head_scan.timestamp = rospy.Time()
+        head_scan.timestamp = time.time()
         head_scan.timestamp.set(data['timestamp']['secs'], data['timestamp']['nsecs'])
         head_scan.base_link_to_image_mat = np.array(data['base_link_to_image_mat'])
         head_scan.base_link_to_map_mat = np.array(data['base_link_to_map_mat'])

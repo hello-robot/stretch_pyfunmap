@@ -9,12 +9,12 @@ import scipy.signal as si
 import scipy.ndimage as nd
 from skimage.morphology import convex_hull_image
 
-import stretch_funmap.max_height_image as mh
-import stretch_funmap.navigation_planning as na
-from stretch_funmap.numba_height_image import numba_create_segment_image_uint8
+import stretch_pyfunmap.max_height_image as mh
+import stretch_pyfunmap.navigation_planning as na
+from stretch_pyfunmap.numba_height_image import numba_create_segment_image_uint8
 
-import hello_helpers.fit_plane as fp
-import hello_helpers.hello_misc as hm
+# import hello_helpers.fit_plane as fp # TODO: separate hello_helpers
+# import hello_helpers.hello_misc as hm # TODO: separate hello_helpers
 
 
 def find_object_to_grasp(surface_mask, plane_parameters, height_image, display_on=False):
