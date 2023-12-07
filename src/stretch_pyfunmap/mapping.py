@@ -57,7 +57,7 @@ def draw_robot_pose(robot_xya_pix, image, m_per_pix, color=(0, 0, 255)):
         else:
             cv2.line(image, (x, y), (x2, y2), 255, 2)
 
-def display_head_scan(title, head_scan, scale_divisor=None, robot_xya_pix_list=None):
+def display_head_scan(title, head_scan, scale_divisor=2, robot_xya_pix_list=None):
     image = head_scan.max_height_im.image
     h, w = image.shape
     color_im = np.zeros((h, w, 3), np.uint8)
@@ -83,6 +83,7 @@ def display_head_scan(title, head_scan, scale_divisor=None, robot_xya_pix_list=N
         nw = w//scale_divisor
         color_im = cv2.resize(color_im, (nw, nh))
         cv2.imshow(title, color_im)
+    cv2.waitKey(0)
 
 
 def localize_with_reduced_images(head_scan, merged_map, global_localization=True, divisor=6, small_search=False):
