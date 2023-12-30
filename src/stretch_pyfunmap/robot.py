@@ -30,7 +30,7 @@ class FunmapRobot:
                 print('CRITICAL: unable to create FunmapRobot while Stretch is runstopped')
                 self.body.stop()
                 sys.exit(1)
-        if not self.body.is_calibrated():
+        if not self.body.is_homed():
             self.body.home()
 
         # setup Stretch's head camera
@@ -157,6 +157,9 @@ class FunmapRobot:
         cloud_arr['r'] = rgb[:, 2]
         cloud_arr['g'] = rgb[:, 1]
         cloud_arr['b'] = rgb[:, 0]
+
+        # filter out non-rgb points
+        cloud_arr = cloud_arr[(cloud_arr['r'] != 0.) & (cloud_arr['g'] != 0.) & (cloud_arr['b'] != 0.)]
 
         cloud_time = time.time()
         cloud_frame = 'camera_color_optical_frame'

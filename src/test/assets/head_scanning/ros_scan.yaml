@@ -1,0 +1,14 @@
+base_link_to_image_mat:
+base_link_to_map_mat:
+image_to_base_link_mat:
+image_to_map_mat:
+map_to_base_mat:
+map_to_image_mat:
+max_height_image_base_filename: ros_scan_mhi
+robot_ang_rad: -0.0
+robot_xy_pix:
+- 1331.3333333333333
+- 1331.3333333333333
+timestamp:
+  nsecs: 635967493
+  secs: 1701918340
