@@ -7,7 +7,6 @@ from urchin import URDF
 import pyrealsense2 as rs
 import stretch_body.robot
 import stretch_body.hello_utils as hu
-from tiny_tf.tf import TFTree, Transform
 
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.utils as utils
