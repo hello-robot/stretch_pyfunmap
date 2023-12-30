@@ -164,7 +164,7 @@ class FunmapRobot:
         cloud_frame = 'camera_color_optical_frame'
         return cloud_time, cloud_frame, cloud_arr
 
-    def show_head_cam(self, hold=False, align=False, pointcloud=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN):
+    def show_head_cam(self, hold=False, align=False, pointcloud=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN, imwrite=None):
         try:
             while True:
                 # Get the latest frames from the camera
@@ -229,6 +229,11 @@ class FunmapRobot:
                     colorAndDepth_image = np.hstack((colorAndDepth_image, color_aligned_to_depth_image))
                 if pointcloud:
                     colorAndDepth_image = np.hstack((colorAndDepth_image, pc_image))
+
+                # Write image instead of showing if imwrite path is set
+                if imwrite:
+                    cv2.imwrite(imwrite, colorAndDepth_image)
+                    return
 
                 # Show image in window
                 cv2.namedWindow('Head Cam', cv2.WINDOW_AUTOSIZE)
