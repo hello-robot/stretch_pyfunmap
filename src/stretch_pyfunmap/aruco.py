@@ -350,3 +350,53 @@ class ArucoMarker:
     def draw_marker_poly(self, image):
         poly_points = self.get_marker_poly()
         cv2.fillConvexPoly(image, poly_points, (255, 0, 0))
+
+
+class ArucoMarkerCollection:
+    def __init__(self, marker_info, show_debug_images=False):
+        self.show_debug_images = show_debug_images
+
+        self.marker_info = marker_info
+        self.aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
+        self.aruco_detection_parameters = aruco.DetectorParameters()
+        # Apparently available in OpenCV 3.4.1, but not OpenCV 3.2.0.
+        self.aruco_detection_parameters.cornerRefinementMethod = aruco.CORNER_REFINE_SUBPIX
+        self.aruco_detection_parameters.cornerRefinementWinSize = 2
+        self.collection = {}
+        self.detector = aruco.ArucoDetector(self.aruco_dict, self.aruco_detection_parameters)
+        self.frame_number = 0
+
+    def __iter__(self):
+        # iterates through currently visible ArUco markers
+        keys = self.collection.keys()
+        for k in keys:
+            marker = self.collection[k]
+            if marker.frame_number == self.frame_number:
+                yield marker
+
+    def draw_markers(self, image):
+        return self.detector.drawDetectedMarkers(image, self.aruco_corners, self.aruco_ids)
+
+    def update(self, rgb_image, camera_info, depth_image=None, timestamp=None):
+        self.frame_number += 1
+        self.timestamp = timestamp
+        self.rgb_image = rgb_image
+        self.camera_info = camera_info
+        self.depth_image = depth_image
+        self.gray_image = cv2.cvtColor(self.rgb_image, cv2.COLOR_BGR2GRAY)
+        image_height, image_width = self.gray_image.shape
+        self.aruco_corners, self.aruco_ids, aruco_rejected_image_points = self.detector.detectMarkers(self.gray_image)
+        if self.aruco_ids is None:
+            num_detected = 0
+        else:
+            num_detected = len(self.aruco_ids)
+
+        if self.aruco_ids is not None:
+            for corners, aruco_id in zip(self.aruco_corners, self.aruco_ids):
+                aruco_id = int(aruco_id)
+                marker = self.collection.get(aruco_id, None)
+                if marker is None:
+                    new_marker = ArucoMarker(aruco_id, self.marker_info, self.show_debug_images)
+                    self.collection[aruco_id] = new_marker
+
+                self.collection[aruco_id].update(corners, self.timestamp, self.frame_number, self.camera_info, self.depth_image)

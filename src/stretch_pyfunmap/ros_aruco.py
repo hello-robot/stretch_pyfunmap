@@ -4,7 +4,9 @@ import numpy as np
 import stretch_pyfunmap.aruco as ar
 
 import rospy
+from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
+from visualization_msgs.msg import MarkerArray
 
 
 class ROSArucoMarker(ar.ArucoMarker):
@@ -150,3 +152,36 @@ class ROSArucoMarker(ar.ArucoMarker):
             markers.append(self.create_axis_marker(self.y_axis, id_num, rgba, name))
 
         return markers
+
+
+class ROSArucoMarkerCollection(ar.ArucoMarkerCollection):
+
+    def broadcast_tf(self, tf_broadcaster):
+        # Create TF frames for each of the markers. Only broadcast each
+        # marker a single time after it has been updated.
+        for key in self.collection:
+            marker = self.collection[key]
+            marker.broadcast_tf(tf_broadcaster)
+
+    def get_ros_marker_array(self):
+        marker_array = MarkerArray()
+        for key in self.collection:
+            marker = self.collection[key]
+            if marker.frame_number == self.frame_number:
+                ros_marker = marker.get_ros_marker()
+                marker_array.markers.append(ros_marker)
+        return marker_array
+
+    def get_ros_axes_array(self, include_z_axes=True, include_axes=True):
+        marker_array = MarkerArray()
+        for key in self.collection:
+            marker = self.collection[key]
+            if marker.frame_number == self.frame_number:
+                if include_z_axes:
+                    ros_z_axis_marker = marker.get_ros_z_axis_marker()
+                    if ros_z_axis_marker is not None:
+                        marker_array.markers.append(ros_z_axis_marker)
+                if include_axes:
+                    ros_axes_markers= marker.get_ros_axes_markers()
+                    marker_array.markers.extend(ros_axes_markers)
+        return marker_array
