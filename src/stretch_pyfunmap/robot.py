@@ -7,7 +7,6 @@ from urchin import URDF
 import pyrealsense2 as rs
 import stretch_body.robot
 import stretch_body.hello_utils as hu
-from tiny_tf.tf import TFTree, Transform
 
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.utils as utils
@@ -267,8 +266,7 @@ class FunmapRobot:
         if 'joint_gripper_finger_left' in pose or 'joint_gripper_finger_right' in pose:
             print('FunmapRobot.move_to_pose WARN: gripper not executing')
         if not return_before_done:
-            print('FunmapRobot.move_to_pose WARN: return_before_done not supported, sleeping 1 second instead')
-            time.sleep(1)
+            self.body.wait_command()
 
     def perform_head_scan(self, autoexposure_timeout=3.0):
         # Reduce occlusion from the arm and gripper
