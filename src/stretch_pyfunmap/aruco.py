@@ -364,6 +364,7 @@ class ArucoMarkerCollection:
         self.collection = {}
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_detection_parameters)
         self.frame_number = 0
+        self.timestamp = None
 
     def __iter__(self):
         # iterates through currently visible ArUco markers
@@ -385,10 +386,6 @@ class ArucoMarkerCollection:
         self.gray_image = cv2.cvtColor(self.rgb_image, cv2.COLOR_BGR2GRAY)
         image_height, image_width = self.gray_image.shape
         self.aruco_corners, self.aruco_ids, aruco_rejected_image_points = self.detector.detectMarkers(self.gray_image)
-        if self.aruco_ids is None:
-            num_detected = 0
-        else:
-            num_detected = len(self.aruco_ids)
 
         if self.aruco_ids is not None:
             for corners, aruco_id in zip(self.aruco_corners, self.aruco_ids):
@@ -398,4 +395,10 @@ class ArucoMarkerCollection:
                     new_marker = ArucoMarker(aruco_id, self.marker_info, self.show_debug_images)
                     self.collection[aruco_id] = new_marker
 
-                self.collection[aruco_id].update(corners, self.timestamp, self.frame_number, self.camera_info, self.depth_image)
+                self.collection[aruco_id].update(
+                    corners,
+                    self.timestamp,
+                    self.frame_number,
+                    self.camera_info,
+                    self.depth_image
+                )
