@@ -4,6 +4,8 @@ import cv2
 import math
 import numpy as np
 
+import stretch_pyfunmap.fit_plane as fp
+
 
 class ArucoMarker:
 
@@ -45,12 +47,15 @@ class ArucoMarker:
         self.points_array = None
         self.ready = False
 
+        self.marker_position = None
         self.x_axis = None
         self.y_axis = None
         self.z_axis = None
         self.used_depth_image = False
         self.broadcasted = False
 
+        self.rvecs_ret = None
+        self.tvecs_ret = None
 
     def get_marker_point_cloud(self):
         return self.points_array
@@ -80,8 +85,15 @@ class ArucoMarker:
         top = int(math.floor(c[1] + mn[1]))
         bottom = int(math.ceil(c[1] + mx[1]))
 
+        if self.show_debug_images:
+            pts = np.array([[left, top], [right, top], [right, bottom], [left, bottom]], np.int32)
+            pts = pts.reshape((-1,1,2))
+            norm_depth_image = cv2.normalize(self.depth_image, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+            cv2.polylines(norm_depth_image, [pts], True, 255)
+            cv2.imshow('Depth Image with Crop Rectangle', norm_depth_image)
+
         # Crop rectangle of depth map corresponding with detected ArUco corners.
-        depth_crop = self.depth_image[top : bottom, left : right]
+        depth_crop = self.depth_scale * self.depth_image[top : bottom, left : right]
 
         # Create a mask corresponding with the polygon defined by the
         # ArUco corners.
@@ -97,15 +109,15 @@ class ArucoMarker:
         coord_crop = np.mgrid[top : bottom : 1, left : right : 1]
 
         # Decompose the camera matrix.
-        camera_matrix = np.reshape(self.camera_info.K, (3,3))
-        f_x = camera_matrix[0,0]
-        c_x = camera_matrix[0,2]
-        f_y = camera_matrix[1,1]
-        c_y = camera_matrix[1,2]
+        depth_camera_matrix = self.depth_camera_info['camera_matrix']
+        f_x = depth_camera_matrix[0,0]
+        c_x = depth_camera_matrix[0,2]
+        f_y = depth_camera_matrix[1,1]
+        c_y = depth_camera_matrix[1,2]
 
         # Convert the points in the cropped rectangle of the depth
         # image to 3D points in meters using the camera matrix.
-        z = depth_crop/1000.0
+        z = depth_crop
         x = ((coord_crop[1] - c_x) / f_x) * z
         y = ((coord_crop[0] - c_y) / f_y) * z
 
@@ -146,6 +158,9 @@ class ArucoMarker:
             # depths.
             points_array = points_array[(mask_crop.flatten() > 0) & mask_z.flatten()]
 
+            # average_of_filtered_depth_points = np.average(points_array, axis=0)
+            #print('average_of_filtered_depth_points =', average_of_filtered_depth_points)
+
             if self.show_debug_images:
                 norm_depth_image = cv2.normalize(self.depth_image, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
                 cv2.imshow('depth_image', norm_depth_image)
@@ -158,16 +173,19 @@ class ArucoMarker:
 
         self.points_array = points_array
 
-
-    def update(self, corners, timestamp, frame_number, camera_info, depth_image=None):
+    def update(self, corners, timestamp, frame_number, rgb_image, rgb_camera_info, depth_image, depth_camera_info, depth_scale):
         self.ready = True
         self.corners = corners
         self.timestamp = timestamp
         self.frame_number = frame_number
-        self.camera_info = camera_info
+        self.rgb_image = rgb_image
+        self.rgb_camera_info = rgb_camera_info
         self.depth_image = depth_image
-        self.camera_matrix = np.reshape(self.camera_info.K, (3,3))
-        self.distortion_coefficients = np.array(self.camera_info.D)
+        self.depth_camera_info = depth_camera_info
+        self.depth_scale = depth_scale
+
+        self.depth_camera_matrix = self.depth_camera_info['camera_matrix']
+        self.depth_distortion_coefficients = self.depth_camera_info['distortion_coefficients']
         rvecs = np.zeros((len(self.corners), 1, 3), dtype=np.float64)
         tvecs = np.zeros((len(self.corners), 1, 3), dtype=np.float64)
         points_3D = np.array([
@@ -177,10 +195,16 @@ class ArucoMarker:
             (-self.length_of_marker_mm / 2, -self.length_of_marker_mm / 2, 0),
         ])
         for marker_num in range(len(self.corners)):
-            unknown_variable, rvecs_ret, tvecs_ret = cv2.solvePnP(objectPoints=points_3D, imagePoints=self.corners[marker_num], cameraMatrix=self.camera_matrix, distCoeffs=self.distortion_coefficients)
-            rvecs[marker_num][:] = np.transpose(rvecs_ret)
-            tvecs[marker_num][:] = np.transpose(tvecs_ret)
+            unknown_variable, self.rvecs_ret, self.tvecs_ret = cv2.solvePnP(
+                objectPoints=points_3D,
+                imagePoints=self.corners[marker_num],
+                cameraMatrix=self.depth_camera_matrix,
+                distCoeffs=self.depth_distortion_coefficients
+            )
+            rvecs[marker_num][:] = np.transpose(self.rvecs_ret)
+            tvecs[marker_num][:] = np.transpose(self.tvecs_ret)
         self.aruco_rotation = rvecs[0][0]
+
         # Convert ArUco position estimate to be in meters.
         self.aruco_position = tvecs[0][0]/1000.0
         aruco_depth_estimate = self.aruco_position[2]
@@ -189,6 +213,7 @@ class ArucoMarker:
         self.min_dists = np.min((self.corners - self.center), axis=1).flatten()
         self.max_dists = np.max((self.corners - self.center), axis=1).flatten()
 
+        only_use_rgb = True
         if (self.depth_image is not None) and (aruco_depth_estimate > self.min_z_to_use_depth_image) and (not self.use_rgb_only):
             only_use_rgb = False
 
@@ -204,8 +229,6 @@ class ArucoMarker:
             if num_points < min_number_of_points_for_plane_fitting:
                 print('WARNING: There are too few points from the depth image for plane fitting, so only using the RGB ArUco estimate. number of points =', num_points)
                 only_use_rgb = True
-        else:
-            only_use_rgb = True
 
         if not only_use_rgb:
             # Use the depth image and the RGB image to estimate the
@@ -227,10 +250,10 @@ class ArucoMarker:
             # as the 3D center for the marker.
             d = self.plane.d
             n = self.plane.n
-            f_x = self.camera_matrix[0,0]
-            c_x = self.camera_matrix[0,2]
-            f_y = self.camera_matrix[1,1]
-            c_y = self.camera_matrix[1,2]
+            f_x = self.depth_camera_matrix[0,0]
+            c_x = self.depth_camera_matrix[0,2]
+            f_y = self.depth_camera_matrix[1,1]
+            c_y = self.depth_camera_matrix[1,2]
 
             def pix_to_plane(pix_x, pix_y):
                 z = 1.0
@@ -331,7 +354,7 @@ class ArucoMarker:
             R[:3,1] = self.y_axis
             R[:3,2] = self.z_axis
 
-            self.marker_quaternion = quaternion_from_matrix(R)
+            # self.marker_quaternion = quaternion_from_matrix(R)
         else:
             # Only use the RGB image for the marker pose
             # estimate. ArUco code performs this estimation.
@@ -340,14 +363,31 @@ class ArucoMarker:
             self.marker_position = self.aruco_position
             R = np.identity(4)
             R[:3,:3] = cv2.Rodrigues(self.aruco_rotation)[0]
-            self.marker_quaternion = quaternion_from_matrix(R)
+            # self.marker_quaternion = quaternion_from_matrix(R)
             self.x_axis = R[:3,0]
             self.y_axis = R[:3,1]
             self.z_axis = R[:3,2]
 
+            # print('Here I am!')
+            # print('z_axis = ', self.z_axis)
+            # # Check for flipped z axis
+            # if self.z_axis[2] >= 0.0:
+            #     print('The Z-axis is flipped!')
+
         self.broadcasted = False
         self.ready = True
 
+    def get_position_and_axes(self):
+        # return copies of the position and axes
+        pos = np.array(self.marker_position)
+        x_axis = np.array(self.x_axis)
+        y_axis = np.array(self.y_axis)
+        z_axis = np.array(self.z_axis)
+        return pos, x_axis, y_axis, z_axis
+
+    def get_info(self):
+        # return copy of marker_info
+        return self.info.copy()
 
     def get_marker_poly(self):
         poly_points = np.array(corners)
@@ -357,6 +397,10 @@ class ArucoMarker:
     def draw_marker_poly(self, image):
         poly_points = self.get_marker_poly()
         cv2.fillConvexPoly(image, poly_points, (255, 0, 0))
+
+    def draw_aruco_axes(self, image):
+        cv2.drawFrameAxes(image, self.depth_camera_matrix, self.depth_distortion_coefficients, self.rvecs_ret, self.tvecs_ret, length=20.0, thickness=4)
+        return image
 
 
 class ArucoMarkerCollection:
@@ -385,12 +429,14 @@ class ArucoMarkerCollection:
     def draw_markers(self, image):
         return self.detector.drawDetectedMarkers(image, self.aruco_corners, self.aruco_ids)
 
-    def update(self, rgb_image, camera_info, depth_image=None, timestamp=None):
+    def update(self, rgb_image, rgb_camera_info, depth_image, depth_camera_info, depth_scale, timestamp=None):
         self.frame_number += 1
         self.timestamp = timestamp
         self.rgb_image = rgb_image
-        self.camera_info = camera_info
+        self.rgb_camera_info = rgb_camera_info
         self.depth_image = depth_image
+        self.depth_camera_info = depth_camera_info
+        self.depth_scale = depth_scale
         self.gray_image = cv2.cvtColor(self.rgb_image, cv2.COLOR_BGR2GRAY)
         image_height, image_width = self.gray_image.shape
         self.aruco_corners, self.aruco_ids, aruco_rejected_image_points = self.detector.detectMarkers(self.gray_image)
@@ -410,6 +456,9 @@ class ArucoMarkerCollection:
                     corners,
                     self.timestamp,
                     self.frame_number,
-                    self.camera_info,
-                    self.depth_image
+                    self.rgb_image,
+                    self.rgb_camera_info,
+                    self.depth_image,
+                    self.depth_camera_matrix,
+                    self.depth_scale
                 )
