@@ -64,6 +64,11 @@
   use_rgb_only: False
   name: 'shoulder_top'
   link: 'link_aruco_shoulder'
+'135':
+  length_mm: 31.4
+  use_rgb_only: False
+  name: 'd405_back'
+  link: 'link_d405_back'
 '245':
   length_mm: 88.0
   use_rgb_only: False

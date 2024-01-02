@@ -3,6 +3,8 @@
 import sys
 import cv2
 import time
+import yaml
+import pickle
 import pathlib
 import numpy as np
 from urchin import URDF
@@ -10,6 +12,7 @@ import pyrealsense2 as rs
 import stretch_body.robot
 import stretch_body.hello_utils as hu
 
+import stretch_pyfunmap.aruco as ar
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.utils as utils
 
@@ -56,6 +59,21 @@ class FunmapRobot:
         # setup Stretch's urdf
         urdf_path = str((pathlib.Path(hu.get_fleet_directory()) / 'exported_urdf' / 'stretch.urdf').absolute())
         self.urdf = URDF.load(urdf_path, lazy_load_meshes=True)
+
+        # setup ArUco detection
+        marker_info_yaml_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'aruco_marker_info.yaml'
+        color_camera_info_pkl_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'frame1_color_camera_info.pkl'
+        depth_camera_info_pkl_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'frame1_depth_camera_info.pkl'
+        with open(str(marker_info_yaml_fpath)) as f:
+            marker_info = yaml.load(f)
+        with open(str(color_camera_info_pkl_fpath), 'rb') as inp:
+            self.color_camera_info = pickle.load(inp)
+        with open(str(depth_camera_info_pkl_fpath), 'rb') as inp:
+            self.depth_camera_info = pickle.load(inp)
+        self.depth_scale = 0.0010000000474974513
+        head_cam_link_name = 'camera_color_optical_frame'
+        head_cam_min_z = 0.28
+        self.arucos = ar.ArucoMarkerCollection(marker_info, head_cam_link_name, head_cam_min_z)
 
     def _get_current_configuration(self):
         def bound_range(name, value):
@@ -286,3 +304,20 @@ class FunmapRobot:
         head_scanner = ma.HeadScan(self, voi_side_m=16.0)
         head_scanner.execute_full()
         return head_scanner
+
+    def detect_arucos(self, imwrite=None):
+        frames = self.head_cam.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        depth_frame = frames.get_depth_frame()
+        color_image = np.asanyarray(color_frame.get_data())
+        depth_image = np.asanyarray(depth_frame.get_data())
+        self.arucos.update(rgb_image=color_image,
+                           rgb_camera_info=self.color_camera_info,
+                           depth_image=depth_image,
+                           depth_camera_info=self.depth_camera_info,
+                           depth_scale=self.depth_scale)
+
+        # Write image instead of showing if imwrite path is set
+        if imwrite:
+            self.arucos.draw_markers(color_image)
+            cv2.imwrite(imwrite, color_image)
