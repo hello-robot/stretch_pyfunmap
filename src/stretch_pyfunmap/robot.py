@@ -225,7 +225,7 @@ class FunmapRobot:
                 # Concatenate images horizontally
                 if color_image.shape[0] != depth_image.shape[0]:
                     print('WARN: cannot show head cam if color & depth are of different resolutions')
-                    raise KeyboardInterrupt()
+                    return
                 colorAndDepth_image = np.hstack((color_image, depth_image))
                 if align:
                     colorAndDepth_image = np.hstack((colorAndDepth_image, color_aligned_to_depth_image))
@@ -247,7 +247,8 @@ class FunmapRobot:
                 wkret = cv2.waitKey(wknum)
                 wkret = 0 if wkret < 0 else wkret
                 if wkret:
-                    raise KeyboardInterrupt()
+                    cv2.destroyAllWindows()
+                    return
         except KeyboardInterrupt:
             return
 
