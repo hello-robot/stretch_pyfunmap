@@ -7,7 +7,7 @@ import numpy as np
 
 class ArucoMarker:
 
-    def __init__(self, aruco_id, marker_info, show_debug_images=False):
+    def __init__(self, aruco_id, marker_info, frame_id, show_debug_images=False):
         self.show_debug_images = show_debug_images
 
         self.aruco_id = aruco_id
@@ -19,7 +19,7 @@ class ArucoMarker:
         bgr = id_color_image[0,0]
         self.id_color = [bgr[2], bgr[1], bgr[0]]
 
-        self.frame_id = 'camera_color_optical_frame'
+        self.frame_id = frame_id
         self.info = marker_info.get(str(self.aruco_id), None)
 
         if self.info is None:
@@ -353,10 +353,10 @@ class ArucoMarker:
 
 
 class ArucoMarkerCollection:
-    def __init__(self, marker_info, show_debug_images=False):
+    def __init__(self, marker_info, frame_id, show_debug_images=False):
         self.show_debug_images = show_debug_images
-
         self.marker_info = marker_info
+        self.frame_id = frame_id
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self.aruco_detection_parameters = cv2.aruco.DetectorParameters()
         self.aruco_detection_parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
@@ -392,7 +392,7 @@ class ArucoMarkerCollection:
                 aruco_id = int(aruco_id)
                 marker = self.collection.get(aruco_id, None)
                 if marker is None:
-                    new_marker = ArucoMarker(aruco_id, self.marker_info, self.show_debug_images)
+                    new_marker = ArucoMarker(aruco_id, self.marker_info, self.frame_id, self.show_debug_images)
                     self.collection[aruco_id] = new_marker
 
                 self.collection[aruco_id].update(
