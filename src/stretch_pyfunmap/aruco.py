@@ -23,7 +23,7 @@ class ArucoMarker:
         self.info = marker_info.get(str(self.aruco_id), None)
 
         if self.info is None:
-            self.info = marker_info['default']
+            raise ValueError(f"Missing info for ArucoMarker ID {self.aruco_id}")
         self.length_of_marker_mm = self.info['length_mm']
         self.use_rgb_only = self.info['use_rgb_only']
 
