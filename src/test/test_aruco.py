@@ -14,19 +14,19 @@ class TestAruco(unittest.TestCase):
         """Try creating a invalid Aruco ID and confirm
         that a ValueError is thrown.
         """
-        frame_id = 'camera_color_optical_frame'
+        link_name = 'camera_color_optical_frame'
         marker_info_yaml_fpath = Path(__file__).parent / 'assets' / 'aruco_detection' / 'aruco_marker_info.yaml'
         with open(str(marker_info_yaml_fpath)) as f:
             marker_info = yaml.load(f, Loader=SafeLoader)
         # 130 is a valid ID that exists in the marker info dictionary
         try:
-            marker = stretch_pyfunmap.aruco.ArucoMarker(130, marker_info, frame_id)
+            marker = stretch_pyfunmap.aruco.ArucoMarker(130, link_name, marker_info)
         except ValueError:
             self.fail("shouldn't have raised a ValueError when given valid ID 130")
 
         # 0 is not a ID that exists in the marker info dictionary
         with self.assertRaises(ValueError):
-            marker = stretch_pyfunmap.aruco.ArucoMarker(0, marker_info, frame_id)
+            marker = stretch_pyfunmap.aruco.ArucoMarker(0, link_name, marker_info)
 
     def test_temp(self):
         """TODO
@@ -42,16 +42,21 @@ class TestAruco(unittest.TestCase):
         with open(str(marker_info_yaml_fpath)) as f:
             marker_info = yaml.load(f, Loader=SafeLoader)
         color_image = cv2.imread(str(color_image_fpath))
-        depth_image = cv2.imread(str(depth_image_fpath))
+        depth_image = cv2.imread(str(depth_image_fpath))[:,:,0] # TODO: use np.save and np.load instead of cv2.imwrite/imread for depth images
         with open(str(color_camera_info_pkl_fpath), 'rb') as inp:
             color_camera_info = pickle.load(inp)
         with open(str(depth_camera_info_pkl_fpath), 'rb') as inp:
             depth_camera_info = pickle.load(inp)
         depth_scale = 0.0010000000474974513
+        link_name = 'camera_color_optical_frame'
 
-        # marker = stretch_pyfunmap.aruco.ArucoMarker(0, marker_info)
-        # collection = stretch_pyfunmap.aruco.ArucoMarkerCollection(marker_info)
-        # collection.update(rgb_image=np.zeros(shape=(1280, 720, 3)),
-        #                   camera_info=?)
-        self.assertTrue(True)
+        # run aruco detection
+        collection = stretch_pyfunmap.aruco.ArucoMarkerCollection(marker_info, link_name)
+        collection.update(rgb_image=color_image,
+                          rgb_camera_info=color_camera_info,
+                          depth_image=depth_image,
+                          depth_camera_info=depth_camera_info,
+                          depth_scale=depth_scale)
 
+        collection.draw_markers(color_image)
+        # cv2.imwrite('detections.png', color_image)

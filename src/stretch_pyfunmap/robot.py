@@ -82,7 +82,7 @@ class FunmapRobot:
                 'joint_head_pan': q_pan,
                 'joint_head_tilt': q_tilt
             }
-        elif tool == 'tool_stretch_dex_wrist':
+        elif tool == 'tool_stretch_dex_wrist' or tool == 'eoa_wrist_dw3_tool_sg3':
             q_lift = bound_range('joint_lift', self.body.lift.status['pos'])
             q_arml = bound_range('joint_arm_l0', self.body.arm.status['pos'] / 4.0)
             q_yaw = bound_range('joint_wrist_yaw', self.body.end_of_arm.status['wrist_yaw']['pos'])
@@ -106,6 +106,8 @@ class FunmapRobot:
                 'joint_head_pan': q_pan,
                 'joint_head_tilt': q_tilt
             }
+        else:
+            raise ValueError(f"Cannot get configuration of {tool} tool")
 
     def get_transform(self, from_frame, to_frame):
         q_curr = self._get_current_configuration()

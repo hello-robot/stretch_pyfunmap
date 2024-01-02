@@ -427,7 +427,7 @@ class ArucoMarkerCollection:
                 yield marker
 
     def draw_markers(self, image):
-        return self.detector.drawDetectedMarkers(image, self.aruco_corners, self.aruco_ids)
+        return cv2.aruco.drawDetectedMarkers(image, self.aruco_corners, self.aruco_ids)
 
     def update(self, rgb_image, rgb_camera_info, depth_image, depth_camera_info, depth_scale, timestamp=None):
         self.frame_number += 1
@@ -459,6 +459,6 @@ class ArucoMarkerCollection:
                     self.rgb_image,
                     self.rgb_camera_info,
                     self.depth_image,
-                    self.depth_camera_matrix,
+                    self.depth_camera_info,
                     self.depth_scale
                 )
