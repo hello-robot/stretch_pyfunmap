@@ -7,7 +7,9 @@ import numpy as np
 
 class ArucoMarker:
 
-    def __init__(self, aruco_id, marker_info, frame_id, show_debug_images=False):
+    def __init__(self, aruco_id, link_name, marker_info,
+                 min_z_to_use_depth_image=None,
+                 show_debug_images=False):
         self.show_debug_images = show_debug_images
 
         self.aruco_id = aruco_id
@@ -19,7 +21,7 @@ class ArucoMarker:
         bgr = id_color_image[0,0]
         self.id_color = [bgr[2], bgr[1], bgr[0]]
 
-        self.frame_id = frame_id
+        self.link_name = link_name
         self.info = marker_info.get(str(self.aruco_id), None)
 
         if self.info is None:
@@ -29,8 +31,13 @@ class ArucoMarker:
 
         # Distance beyond which the depth image depth will be
         # used to estimate the marker position.
-        # 280mm is the minimum depth for the D435i at 1280x720 resolution
-        self.min_z_to_use_depth_image = 0.28 + (self.length_of_marker_mm/1000.0)
+        self.min_z_to_use_depth_image = min_z_to_use_depth_image
+        if self.min_z_to_use_depth_image is None:
+            print('WARN: defaulting to D435if 1280x730 min_z_to_use_depth_image')
+            # 280mm is the minimum depth for the D435if at 1280x720 resolution
+            self.min_z_to_use_depth_image = 0.28 + (self.length_of_marker_mm/1000.0)
+            # # 70mm is the minimum depth for the D405 at 640x480 resolution
+            # self.min_z_to_use_depth_image = 0.07 + (self.length_of_marker_mm/1000.0)
 
         self.frame_number = None
         self.timestamp = None
@@ -353,10 +360,11 @@ class ArucoMarker:
 
 
 class ArucoMarkerCollection:
-    def __init__(self, marker_info, frame_id, show_debug_images=False):
-        self.show_debug_images = show_debug_images
+    def __init__(self, marker_info, link_name, min_z_to_use_depth_image=None, show_debug_images=False):
         self.marker_info = marker_info
-        self.frame_id = frame_id
+        self.link_name = link_name
+        self.min_z_to_use_depth_image = min_z_to_use_depth_image
+        self.show_debug_images = show_debug_images
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self.aruco_detection_parameters = cv2.aruco.DetectorParameters()
         self.aruco_detection_parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
@@ -392,7 +400,10 @@ class ArucoMarkerCollection:
                 aruco_id = int(aruco_id)
                 marker = self.collection.get(aruco_id, None)
                 if marker is None:
-                    new_marker = ArucoMarker(aruco_id, self.marker_info, self.frame_id, self.show_debug_images)
+                    new_marker = ArucoMarker(aruco_id, self.link_name, self.marker_info,
+                        self.min_z_to_use_depth_image,
+                        self.show_debug_images
+                    )
                     self.collection[aruco_id] = new_marker
 
                 self.collection[aruco_id].update(
