@@ -4,6 +4,7 @@ import sys
 import cv2
 import time
 import yaml
+from yaml.loader import SafeLoader
 import pickle
 import pathlib
 import numpy as np
@@ -65,7 +66,7 @@ class FunmapRobot:
         color_camera_info_pkl_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'frame1_color_camera_info.pkl'
         depth_camera_info_pkl_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'frame1_depth_camera_info.pkl'
         with open(str(marker_info_yaml_fpath)) as f:
-            marker_info = yaml.load(f)
+            marker_info = yaml.load(f, Loader=SafeLoader)
         with open(str(color_camera_info_pkl_fpath), 'rb') as inp:
             self.color_camera_info = pickle.load(inp)
         with open(str(depth_camera_info_pkl_fpath), 'rb') as inp:

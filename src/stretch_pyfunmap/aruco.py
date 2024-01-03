@@ -109,7 +109,7 @@ class ArucoMarker:
         coord_crop = np.mgrid[top : bottom : 1, left : right : 1]
 
         # Decompose the camera matrix.
-        depth_camera_matrix = self.depth_camera_info['camera_matrix']
+        depth_camera_matrix = self.rgb_camera_info['camera_matrix']
         f_x = depth_camera_matrix[0,0]
         c_x = depth_camera_matrix[0,2]
         f_y = depth_camera_matrix[1,1]
@@ -184,8 +184,8 @@ class ArucoMarker:
         self.depth_camera_info = depth_camera_info
         self.depth_scale = depth_scale
 
-        self.depth_camera_matrix = self.depth_camera_info['camera_matrix']
-        self.depth_distortion_coefficients = self.depth_camera_info['distortion_coefficients']
+        self.depth_camera_matrix = self.rgb_camera_info['camera_matrix']
+        self.depth_distortion_coefficients = self.rgb_camera_info['distortion_coefficients']
         rvecs = np.zeros((len(self.corners), 1, 3), dtype=np.float64)
         tvecs = np.zeros((len(self.corners), 1, 3), dtype=np.float64)
         points_3D = np.array([
@@ -227,7 +227,7 @@ class ArucoMarker:
             num_points = self.points_array.shape[0]
             min_number_of_points_for_plane_fitting = 16
             if num_points < min_number_of_points_for_plane_fitting:
-                print('WARNING: There are too few points from the depth image for plane fitting, so only using the RGB ArUco estimate. number of points =', num_points)
+                # print('WARNING: There are too few points from the depth image for plane fitting, so only using the RGB ArUco estimate. number of points =', num_points)
                 only_use_rgb = True
 
         if not only_use_rgb:
@@ -411,8 +411,8 @@ class ArucoMarkerCollection:
         self.show_debug_images = show_debug_images
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self.aruco_detection_parameters = cv2.aruco.DetectorParameters()
-        self.aruco_detection_parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
-        self.aruco_detection_parameters.cornerRefinementWinSize = 2
+        self.aruco_detection_parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_APRILTAG
+        # self.aruco_detection_parameters.cornerRefinementWinSize = 2
         self.collection = {}
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_detection_parameters)
         self.frame_number = 0

@@ -24,7 +24,7 @@ imwrite_counter = 0
 while True:
     imwrite_counter = (imwrite_counter + 1) % 100
     if imwrite_counter == 99:
-        print("Writing Image")
+        # print("Writing Image")
         robot.detect_arucos(imwrite='/home/hello-robot/repos/stretch_pyfunmap/src/tools/view.png')
     # print(f"Charging={robot.body.pimu.status['charger_connected']}")
     gamepad_teleop.step_mainloop(robot.body)

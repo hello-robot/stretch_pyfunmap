@@ -11,13 +11,13 @@ def fit_plane_to_height_image(height_image, mask):
     z = height_image[mask > 0]
     nonzero = cv2.findNonZero(mask)
     perform_test = False
-    if perform_test: 
+    if perform_test:
         print('z.shape =', z.shape)
         print(z)
-        for n in range(10): 
+        for n in range(10):
             test_x, test_y = nonzero[n][0]
             test_z = height_image[test_y, test_x]
-            
+
             print('x, y, z, z_test =', test_x, test_y, test_z, z[n])
     num_points, s1, s2 = nonzero.shape
     nonzero = np.reshape(nonzero, (num_points, 2))
@@ -37,7 +37,7 @@ def fit_plane_to_height_image_error(a, X, z):
     return fit_error, z_fit
 
 
-def svd_fit(points, verbose=False): 
+def svd_fit(points, verbose=False):
     # calculate and subtract the mean
     center = np.mean(points, axis=0)
 
@@ -47,7 +47,7 @@ def svd_fit(points, verbose=False):
     # make the point distribution have zero mean
     points_zero_mean = points - center
 
-    if verbose: 
+    if verbose:
         print( 'points_zero_mean[:5] =', points_zero_mean[:5] )
         print( 'points_zero_mean.shape =', points_zero_mean.shape )
 
@@ -60,9 +60,9 @@ def svd_fit(points, verbose=False):
     e0 = np.reshape(u[:, 0], (3,1))
     e1 = np.reshape(u[:, 1], (3,1))
     e2 = np.reshape(u[:, 2], (3,1))
-    
+
     center = np.reshape(center, (3,1))
-        
+
     return center, e0, e1, e2
 
 
@@ -77,7 +77,7 @@ class FitPlane():
         self.n = n
         self.d = d
         self.update()
-        
+
     def update(self):
         return
 
@@ -94,7 +94,7 @@ class FitPlane():
         x_approx_2 = x_approx - (np.matmul(z_p.transpose(), x_approx) * z_p)
         x_approx_1_mag = np.linalg.norm(x_approx_1)
         x_approx_2_mag = np.linalg.norm(x_approx_2)
-        if x_approx_1_mag > x_approx_2_mag: 
+        if x_approx_1_mag > x_approx_2_mag:
             x_p = x_approx_1 / x_approx_1_mag
         else:
             x_p = x_approx_2 / x_approx_2_mag
@@ -102,12 +102,12 @@ class FitPlane():
 
         p_origin = self.d * self.n
         return x_p, y_p, z_p, p_origin
-        
-        
+
+
     def get_points_on_plane(self, plane_origin=None, side_length=1.0, sample_spacing=0.01):
         x_p, y_p, z_p, p_origin = self.get_plane_coordinate_system()
         h = side_length/2.0
-        if plane_origin is None: 
+        if plane_origin is None:
             plane_list = [np.reshape((x_p * alpha) + (y_p * beta) + p_origin, (3,))
                           for alpha in np.arange(-h, h, sample_spacing)
                           for beta in np.arange(-h, h, sample_spacing)]
@@ -120,11 +120,11 @@ class FitPlane():
         plane_array = np.array(plane_list)
         return plane_array
 
-        
+
     def abs_dist(self, points_array):
         out = np.abs(np.matmul(self.n.transpose(), points_array.transpose()) - self.d).flatten()
         return out
-        
+
     def height(self, points_array):
         # positive is closer to the camera (e.g., above floor)
         # negative is farther from the camera (e.g., below floor)?
@@ -133,7 +133,7 @@ class FitPlane():
 
     def get_points_nearby(self, points_array, dist_threshold_mm):
         # return points that are within a distance from the current plane
-        if (self.n is not None) and (self.d is not None): 
+        if (self.n is not None) and (self.d is not None):
             dist = np.abs(np.matmul(self.n.transpose(), points_array.transpose()) - self.d).flatten()
             # only points < dist_threshold meters away from the plane are
             # considered in the fit dist_threshold = 0.2 #1.0 #0.5 #0.2
@@ -144,8 +144,8 @@ class FitPlane():
         else:
             points = points_array
         return points
-        
-    
+
+
     def fit_svd(self, points_array,
                 dist_threshold_mm=200.0,
                 prefilter_points=False,
@@ -166,33 +166,33 @@ class FitPlane():
             points = points_array
 
         center, e0, e1, e2 = svd_fit(points, verbose)
-        
+
         # find the smallest eigenvector, which corresponds to the
         # normal of the plane
         n = e2
-        
+
         # ensure that the direction of the normal matches our convention
         approximate_up = self.towards_camera
         if np.matmul(n.transpose(), approximate_up) > 0.0:
             n = -n
-        if verbose: 
-            print( 'SVD fit' ) 
+        if verbose:
+            print( 'SVD fit' )
             print( 'n =', n )
             print( 'np.linalg.norm(n) =', np.linalg.norm(n) )
 
         #center = np.reshape(center, (3,1))
         d = np.matmul(n.transpose(), center)
-        if verbose: 
+        if verbose:
             print( 'd =', d )
 
         self.d = d
         self.n = n
-        if verbose: 
+        if verbose:
             print( 'self.d =', self.d )
             print( 'self.n =', self.n )
         self.update()
-        
-         
+
+
     def fit_ransac(self, points_array,
                    dist_threshold=0.2,
                    ransac_inlier_threshold_m=0.04,
@@ -209,7 +209,7 @@ class FitPlane():
             points = self.get_points_nearby(points_array, dist_threshold_mm)
         else:
             points = points_array
-            
+
         num_points = points.shape[0]
         indices = np.arange(num_points)
 
@@ -218,13 +218,13 @@ class FitPlane():
         min_num_inliers = 100
 
         approximate_up = self.towards_camera
-        
+
         # should be well above the maximum achievable error, since
         # error is average distance in meters
 
         best_model_inlier_selector = None
         best_model_inlier_count = 0
-        
+
         for i in range(number_of_iterations):
             if verbose:
                 print( 'RANSAC iteration', i )
@@ -271,7 +271,7 @@ class FitPlane():
                     # sum_i | n^T p_i - d |
                     # should be able to make this faster by selecting from the already computed distances
                     new_error = np.average(np.abs(np.matmul(n.transpose(), model_inliers.transpose()) - d))
-                    if best_model_inliers is None: 
+                    if best_model_inliers is None:
                         best_model_inliers = points[best_model_inlier_selector]
                     if best_model_error is None:
                         # should be able to make this faster by
@@ -289,7 +289,7 @@ class FitPlane():
                         best_model_error = new_error
         if best_model_inlier_count > 0:
             if verbose:
-                print( 'RANSAC FINISHED' ) 
+                print( 'RANSAC FINISHED' )
                 print( 'new model found by RANSAC:' )
             self.d = best_model_d
             self.n = best_model_n
