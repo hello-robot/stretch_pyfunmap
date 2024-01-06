@@ -37,7 +37,10 @@ while not found_dock:
 
 # 4. Create a head scan of the area around the docking station
 head_scanner = ma.HeadScan(robot, voi_side_m=8.0)
-
+head_scanner.execute_front(fast_scan=True)
+print(len(head_scanner.unprocessed_data))
+from stretch_pyfunmap.mapping import display_head_scan
+display_head_scan('Head Scan', head_scanner)
 
 gamepad_teleop.stop()
 robot.body.stop()

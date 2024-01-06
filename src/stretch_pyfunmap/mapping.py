@@ -244,6 +244,7 @@ def localize_with_reduced_images(head_scan, merged_map, global_localization=True
 class HeadScan:
     def __init__(self, robot, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
         self.robot = robot
+        self.unprocessed_data = []
         self.max_height_im = max_height_im
         if self.max_height_im is None:
             # How to best set this volume of interest (VOI) merits further
@@ -327,6 +328,13 @@ class HeadScan:
                 num_point_clouds += 1
                 prev_cloud_time = cloud_time
 
+                # save the original data to the unprocessed_data array
+                capture_data = {
+                    'pose': pose,
+                    'picture': self.robot.take_picture(),
+                    'point_cloud': (cloud_time, cloud_frame, cloud_arr)
+                }
+                self.unprocessed_data.append(capture_data)
 
     def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, look_at_self=True):
         scan_start_time = time.time()
