@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Sample command line usage:
 #   funmap_head_scan_visualizer.py --save ./example_scan
 # See the parser arguments below for more command-line options.

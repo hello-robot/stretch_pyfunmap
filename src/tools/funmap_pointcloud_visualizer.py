@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import stretch_pyfunmap.robot
 
 robot = stretch_pyfunmap.robot.FunmapRobot()

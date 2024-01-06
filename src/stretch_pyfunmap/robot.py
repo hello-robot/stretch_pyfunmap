@@ -1,6 +1,11 @@
+#!/usr/bin/env python3
+
 import sys
 import cv2
 import time
+import yaml
+from yaml.loader import SafeLoader
+import pickle
 import pathlib
 import numpy as np
 from urchin import URDF
@@ -8,6 +13,7 @@ import pyrealsense2 as rs
 import stretch_body.robot
 import stretch_body.hello_utils as hu
 
+import stretch_pyfunmap.aruco as ar
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.utils as utils
 
@@ -55,6 +61,21 @@ class FunmapRobot:
         urdf_path = str((pathlib.Path(hu.get_fleet_directory()) / 'exported_urdf' / 'stretch.urdf').absolute())
         self.urdf = URDF.load(urdf_path, lazy_load_meshes=True)
 
+        # setup ArUco detection
+        marker_info_yaml_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'aruco_marker_info.yaml'
+        color_camera_info_pkl_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'frame1_color_camera_info.pkl'
+        depth_camera_info_pkl_fpath = pathlib.Path(__file__).parent.parent / 'test' / 'assets' / 'aruco_detection' / 'frame1_depth_camera_info.pkl'
+        with open(str(marker_info_yaml_fpath)) as f:
+            marker_info = yaml.load(f, Loader=SafeLoader)
+        with open(str(color_camera_info_pkl_fpath), 'rb') as inp:
+            self.color_camera_info = pickle.load(inp)
+        with open(str(depth_camera_info_pkl_fpath), 'rb') as inp:
+            self.depth_camera_info = pickle.load(inp)
+        self.depth_scale = 0.0010000000474974513
+        head_cam_link_name = 'camera_color_optical_frame'
+        head_cam_min_z = 0.28
+        self.arucos = ar.ArucoMarkerCollection(marker_info, head_cam_link_name, head_cam_min_z)
+
     def _get_current_configuration(self):
         def bound_range(name, value):
             return min(max(value, self.urdf.joint_map[name].limit.lower), self.urdf.joint_map[name].limit.upper)
@@ -80,7 +101,7 @@ class FunmapRobot:
                 'joint_head_pan': q_pan,
                 'joint_head_tilt': q_tilt
             }
-        elif tool == 'tool_stretch_dex_wrist':
+        elif tool == 'tool_stretch_dex_wrist' or tool == 'eoa_wrist_dw3_tool_sg3':
             q_lift = bound_range('joint_lift', self.body.lift.status['pos'])
             q_arml = bound_range('joint_arm_l0', self.body.arm.status['pos'] / 4.0)
             q_yaw = bound_range('joint_wrist_yaw', self.body.end_of_arm.status['wrist_yaw']['pos'])
@@ -104,6 +125,8 @@ class FunmapRobot:
                 'joint_head_pan': q_pan,
                 'joint_head_tilt': q_tilt
             }
+        else:
+            raise ValueError(f"Cannot get configuration of {tool} tool")
 
     def get_transform(self, from_frame, to_frame):
         q_curr = self._get_current_configuration()
@@ -164,7 +187,7 @@ class FunmapRobot:
         cloud_frame = 'camera_color_optical_frame'
         return cloud_time, cloud_frame, cloud_arr
 
-    def show_head_cam(self, hold=False, align=False, pointcloud=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN):
+    def show_head_cam(self, hold=False, align=False, pointcloud=False, apply_clahe=False, depth_colormap=cv2.COLORMAP_OCEAN, imwrite=None):
         try:
             while True:
                 # Get the latest frames from the camera
@@ -223,12 +246,17 @@ class FunmapRobot:
                 # Concatenate images horizontally
                 if color_image.shape[0] != depth_image.shape[0]:
                     print('WARN: cannot show head cam if color & depth are of different resolutions')
-                    raise KeyboardInterrupt()
+                    return
                 colorAndDepth_image = np.hstack((color_image, depth_image))
                 if align:
                     colorAndDepth_image = np.hstack((colorAndDepth_image, color_aligned_to_depth_image))
                 if pointcloud:
                     colorAndDepth_image = np.hstack((colorAndDepth_image, pc_image))
+
+                # Write image instead of showing if imwrite path is set
+                if imwrite:
+                    cv2.imwrite(imwrite, colorAndDepth_image)
+                    return
 
                 # Show image in window
                 cv2.namedWindow('Head Cam', cv2.WINDOW_AUTOSIZE)
@@ -240,7 +268,8 @@ class FunmapRobot:
                 wkret = cv2.waitKey(wknum)
                 wkret = 0 if wkret < 0 else wkret
                 if wkret:
-                    raise KeyboardInterrupt()
+                    cv2.destroyAllWindows()
+                    return
         except KeyboardInterrupt:
             return
 
@@ -250,6 +279,8 @@ class FunmapRobot:
         print(f'Moving to {pose}')
         if 'joint_lift' in pose:
             self.body.lift.move_to(pose['joint_lift'])
+        if 'joint_arm' in pose:
+            self.body.arm.move_to(pose['joint_arm'])
         if 'wrist_extension' in pose:
             self.body.arm.move_to(pose['wrist_extension'])
         self.body.push_command()
@@ -276,3 +307,20 @@ class FunmapRobot:
         head_scanner = ma.HeadScan(self, voi_side_m=16.0)
         head_scanner.execute_full()
         return head_scanner
+
+    def detect_arucos(self, imwrite=None):
+        frames = self.head_cam.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        depth_frame = frames.get_depth_frame()
+        color_image = np.asanyarray(color_frame.get_data())
+        depth_image = np.asanyarray(depth_frame.get_data())
+        self.arucos.update(rgb_image=color_image,
+                           rgb_camera_info=self.color_camera_info,
+                           depth_image=depth_image,
+                           depth_camera_info=self.depth_camera_info,
+                           depth_scale=self.depth_scale)
+
+        # Write image instead of showing if imwrite path is set
+        if imwrite:
+            self.arucos.draw_markers(color_image)
+            cv2.imwrite(imwrite, color_image)
