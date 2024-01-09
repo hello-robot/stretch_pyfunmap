@@ -276,7 +276,7 @@ class FunmapRobot:
     def move_to_pose(self, pose, return_before_done=False, custom_contact_thresholds=False):
         if custom_contact_thresholds:
             raise Exception('FunmapRobot.move_to_pose ERROR: I dont support contact thresholds yet')
-        print(f'Moving to {pose}')
+        # print(f'Moving to {pose}')
         if 'joint_lift' in pose:
             self.body.lift.move_to(pose['joint_lift'])
         if 'joint_arm' in pose:
