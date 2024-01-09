@@ -8,7 +8,7 @@ import stretch_pyfunmap.ros_max_height_image as rm
 
 import rospy
 import ros_numpy as rn
-import hello_helpers.hello_misc as hm
+import stretch_pyfunmap.utils as utils
 from actionlib_msgs.msg import GoalStatus
 from std_srvs.srv import Trigger, TriggerRequest
 from control_msgs.msg import FollowJointTrajectoryResult
@@ -109,7 +109,7 @@ class FastSingleViewPlanner():
             if debug and (self.debug_directory is not None):
                 # Save the new scan to disk.
                 dirname = self.debug_directory + 'check_line_path/'
-                filename = 'check_line_path_' + hm.create_time_string()
+                filename = 'check_line_path_' + utils.create_time_string()
                 print('FastSingleViewPlanner check_line_path : directory =', dirname)
                 print('FastSingleViewPlanner check_line_path : filename =', filename)
                 if not os.path.exists(dirname):
@@ -140,7 +140,7 @@ class FastSingleViewPlanner():
             if debug and (self.debug_directory is not None):
                 # Save the new scan to disk.
                 dirname = self.debug_directory + 'plan_a_path/'
-                filename = 'plan_a_path_' + hm.create_time_string()
+                filename = 'plan_a_path_' + utils.create_time_string()
                 print('FastSingleViewPlanner plan_a_path : directory =', dirname)
                 print('FastSingleViewPlanner plan_a_path : filename =', filename)
                 if not os.path.exists(dirname):
@@ -335,7 +335,7 @@ class MoveBase():
 
             # Find the angle that the robot should turn in order
             # to achieve the target.
-            turn_angle_error_rad = hm.angle_diff_rad(target_angle_rad, end_angle_rad)
+            turn_angle_error_rad = utils.angle_diff_rad(target_angle_rad, end_angle_rad)
             turn_attempts += 1
 
         if (abs(turn_angle_error_rad) < tolerance_angle_rad):

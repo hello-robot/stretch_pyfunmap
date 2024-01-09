@@ -6,7 +6,7 @@ import stretch_pyfunmap.ros_max_height_image as rmhi
 import rospy
 import ros_numpy
 import tf_conversions
-import hello_helpers.hello_misc as hm
+import stretch_pyfunmap.utils as utils
 from actionlib_msgs.msg import GoalStatus
 
 
@@ -83,11 +83,11 @@ class ROSHeadScan(ma.HeadScan):
         # in time could result in small differences due to encoder
         # noise.
         self.base_link_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('base_link', self.node.tf2_buffer)
-        self.base_link_to_map_mat, timestamp = hm.get_p1_to_p2_matrix('base_link', 'map', self.node.tf2_buffer)
+        self.base_link_to_map_mat, timestamp = utils.get_p1_to_p2_matrix('base_link', 'map', self.node.tf2_buffer)
         self.image_to_map_mat, timestamp = self.max_height_im.get_image_to_points_mat('map', self.node.tf2_buffer)
         self.image_to_base_link_mat, timestamp = self.max_height_im.get_image_to_points_mat('base_link', self.node.tf2_buffer)
         self.map_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('map', self.node.tf2_buffer)
-        self.map_to_base_mat, timestamp = hm.get_p1_to_p2_matrix('map', 'base_link', self.node.tf2_buffer)
+        self.map_to_base_mat, timestamp = utils.get_p1_to_p2_matrix('map', 'base_link', self.node.tf2_buffer)
 
         self.make_robot_mast_blind_spot_unobserved()
         self.make_robot_footprint_unobserved()

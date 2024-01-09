@@ -3,6 +3,7 @@
 # Their Apache 2.0 license can be found here: https://github.com/IntelRealSense/librealsense/blob/master/LICENSE
 
 import cv2
+import time
 import math
 import numpy as np
 import pyrealsense2 as rs
@@ -179,3 +180,58 @@ def mouse_cb(event, x, y, flags, param):
         state.distance -= dz
 
     state.prev_mouse = (x, y)
+
+
+############### BELOW METHODS COPIED FROM HELLO_MISC ###############
+
+
+# initial code copied from stackoverflow.com on 10/20/2019
+# https://stackoverflow.com/questions/45225474/find-nearest-white-pixel-to-a-given-pixel-location-opencv
+def find_nearest_nonzero(img, target):
+    nonzero = cv2.findNonZero(img)
+    distances = np.sqrt((nonzero[:,:,0] - target[0]) ** 2 + (nonzero[:,:,1] - target[1]) ** 2)
+    nearest_index = np.argmin(distances)
+    nearest_x, nearest_y = nonzero[nearest_index][0]
+    nearest_label = img[nearest_y, nearest_x]
+    return nearest_x, nearest_y, nearest_label
+
+
+def create_time_string():
+    t = time.localtime()
+    time_string = str(t.tm_year) + str(t.tm_mon).zfill(2) + str(t.tm_mday).zfill(2) + str(t.tm_hour).zfill(2) + str(t.tm_min).zfill(2) + str(t.tm_sec).zfill(2)
+    return time_string
+
+
+def angle_diff_rad(target_rad, current_rad):
+    # I've written this type of function many times before, and it's
+    # always been annoying and tricky. This time, I looked on the web:
+    # https://stackoverflow.com/questions/1878907/the-smallest-difference-between-2-angles
+    diff_rad = target_rad - current_rad
+    diff_rad = ((diff_rad + math.pi) % (2.0 * math.pi)) - math.pi
+    return diff_rad
+
+
+def get_p1_to_p2_matrix(p1_frame_id, p2_frame_id, tf2_buffer, lookup_time=None, timeout_s=None):
+    import rospy
+    import tf2_ros
+    import ros_numpy
+    # If the necessary TF2 transform is successfully looked up, this
+    # returns a 4x4 affine transformation matrix that transforms
+    # points in the p1_frame_id frame to points in the p2_frame_id.
+    try:
+        if lookup_time is None:
+            lookup_time = rospy.Time(0) # return most recent transform
+        if timeout_s is None:
+            timeout_ros = rospy.Duration(0.1)
+        else:
+            timeout_ros = rospy.Duration(timeout_s)
+        stamped_transform =  tf2_buffer.lookup_transform(p2_frame_id, p1_frame_id, lookup_time, timeout_ros)
+
+        # http://docs.ros.org/melodic/api/geometry_msgs/html/msg/TransformStamped.html
+
+        p1_to_p2_mat = ros_numpy.numpify(stamped_transform.transform)
+        return p1_to_p2_mat, stamped_transform.header.stamp
+    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+        print('WARNING: get_p1_to_p2_matrix failed to lookup transform from p1_frame_id =', p1_frame_id, ' to p2_frame_id =', p2_frame_id)
+        print('         exception =', e)
+        return None, None

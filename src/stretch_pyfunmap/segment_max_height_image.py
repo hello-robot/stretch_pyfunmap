@@ -9,12 +9,11 @@ import scipy.signal as si
 import scipy.ndimage as nd
 from skimage.morphology import convex_hull_image
 
-import stretch_funmap.max_height_image as mh
-import stretch_funmap.navigation_planning as na
-from stretch_funmap.numba_height_image import numba_create_segment_image_uint8
+import stretch_pyfunmap.navigation_planning as na
+from stretch_pyfunmap.numba_height_image import numba_create_segment_image_uint8
 
-import hello_helpers.fit_plane as fp
-import hello_helpers.hello_misc as hm
+import stretch_pyfunmap.fit_plane as fp
+import stretch_pyfunmap.utils as utils
 
 
 def find_object_to_grasp(surface_mask, plane_parameters, height_image, display_on=False):
@@ -488,7 +487,7 @@ def find_closest_flat_surface(height_image, robot_xy_pix, display_on=False):
         height, width = surface_label_image.shape
         robot_xy_pix = [width/2, 0]
         robot_loc = np.array(robot_xy_pix)
-        nearest_x, nearest_y, nearest_surface_label = hm.find_nearest_nonzero(surface_label_image, robot_loc)
+        nearest_x, nearest_y, nearest_surface_label = utils.find_nearest_nonzero(surface_label_image, robot_loc)
 
         best_surface = np.uint8(surface_label_image == nearest_surface_label)
 

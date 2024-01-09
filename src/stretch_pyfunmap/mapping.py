@@ -10,7 +10,6 @@ import scipy.ndimage as nd
 import stretch_pyfunmap.merge_maps as mm
 import stretch_pyfunmap.navigation_planning as na
 import stretch_pyfunmap.max_height_image as mhi
-import stretch_pyfunmap.segment_max_height_image as sm
 
 
 def stow_and_lower_arm(node):

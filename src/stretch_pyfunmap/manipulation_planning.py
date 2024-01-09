@@ -15,7 +15,7 @@ from stretch_pyfunmap.numba_check_line_path import numba_find_contact_along_line
 
 import rospy
 import ros_numpy as rn
-import hello_helpers.hello_misc as hm
+import stretch_pyfunmap.utils as utils
 
 
 def plan_surface_coverage(tool_start_xy_pix, tool_end_xy_pix, tool_extension_direction_xy_pix, step_size_pix, max_extension_pix, surface_mask_image, obstacle_mask_image):
@@ -333,7 +333,7 @@ class ManipulationView():
             # If the directory does not already exist, create it.
             if not os.path.exists(dirname):
                 os.makedirs(dirname)
-            filename = 'estimate_reach_to_contact_distance_mask_' + hm.create_time_string() + '.png'
+            filename = 'estimate_reach_to_contact_distance_mask_' + utils.create_time_string() + '.png'
             cv2.imwrite(dirname + filename, mask_image)
 
             line_width = 2
@@ -351,7 +351,7 @@ class ManipulationView():
                 p1 = tuple(np.int32(np.round(contact_xy)))
                 cv2.line(color_im, p0, p1, [255, 0, 0], line_width)
                 cv2.circle(color_im, p1, radius, (0,0,255), 1)
-            filename = 'estimate_reach_to_contact_distance_annotated_mask_' + hm.create_time_string() + '.png'
+            filename = 'estimate_reach_to_contact_distance_annotated_mask_' + utils.create_time_string() + '.png'
             cv2.imwrite(dirname + filename, color_im)
 
             rgb_image = self.max_height_im.rgb_image.copy()
@@ -361,7 +361,7 @@ class ManipulationView():
                 p1 = tuple(np.int32(np.round(contact_xy)))
                 cv2.line(rgb_image, p0, p1, [255, 0, 0], line_width)
                 cv2.circle(rgb_image, p1, radius, (0,0,255), 1)
-            filename = 'estimate_reach_to_contact_distance_annotated_rgb_' + hm.create_time_string() + '.png'
+            filename = 'estimate_reach_to_contact_distance_annotated_rgb_' + utils.create_time_string() + '.png'
             cv2.imwrite(dirname + filename, rgb_image)
 
         else:
@@ -384,7 +384,7 @@ class ManipulationView():
             sm.draw_grasp(rgb_image, grasp_target)
             # Save the new scan to disk.
             dirname = self.debug_directory + 'get_grasp_target/'
-            filename = 'grasp_target_' + hm.create_time_string() + '.png'
+            filename = 'grasp_target_' + utils.create_time_string() + '.png'
             print('ManipulationView get_grasp_target : directory =', dirname)
             print('ManipulationView get_grasp_target : filename =', filename)
             if not os.path.exists(dirname):
@@ -462,7 +462,7 @@ class ManipulationView():
                 side_to_grasp = v1
 
             object_ang_rad = np.arctan2(side_to_grasp[1], -side_to_grasp[0])
-            yaw_angle = float(hm.angle_diff_rad(object_ang_rad, gripper_ang_rad))
+            yaw_angle = float(utils.angle_diff_rad(object_ang_rad, gripper_ang_rad))
 
         return yaw_angle
 
@@ -551,7 +551,7 @@ class ManipulationView():
 
             # Save the new scan to disk.
             dirname = self.debug_directory + 'get_pregrasp_planar_translation/'
-            filename = 'pregrasp_planar_translation_' + hm.create_time_string() + '.png'
+            filename = 'pregrasp_planar_translation_' + utils.create_time_string() + '.png'
             print('ManipulationView get_pregrasp_planar_translation : directory =', dirname)
             print('ManipulationView get_pregrasp_planar_translation : filename =', filename)
             if not os.path.exists(dirname):
@@ -662,7 +662,7 @@ class ManipulationView():
 
             # Save the new scan to disk.
             dirname = self.debug_directory + 'get_grasp_from_pregrasp/'
-            filename = 'grasp_from_pregrasp_' + hm.create_time_string() + '.png'
+            filename = 'grasp_from_pregrasp_' + utils.create_time_string() + '.png'
             print('ManipulationView get_grasp_from_pregrasp : directory =', dirname)
             print('ManipulationView get_grasp_from_pregrasp : filename =', filename)
             if not os.path.exists(dirname):
@@ -816,7 +816,7 @@ class ManipulationView():
 
                     # Save the new scan to disk.
                     dirname = self.debug_directory + 'get_surface_wiping_plan/'
-                    filename = 'surface_wiping_plan_' + hm.create_time_string() + '.png'
+                    filename = 'surface_wiping_plan_' + utils.create_time_string() + '.png'
                     print('ManipulationView get_surface_wiping_plan : directory =', dirname)
                     print('ManipulationView get_surface_wiping_plan : filename =', filename)
                     if not os.path.exists(dirname):
