@@ -12,24 +12,6 @@ import stretch_pyfunmap.navigation_planning as na
 import stretch_pyfunmap.max_height_image as mhi
 
 
-def stow_and_lower_arm(node):
-    pose = {'joint_gripper_finger_left': -0.15}
-    node.move_to_pose(pose)
-    pose = {'wrist_extension': 0.01}
-    node.move_to_pose(pose)
-
-    # gripper backwards stow
-    pose = {'joint_wrist_yaw': 3.3}
-
-    # gripper forward stow needs a better forward range of motion to work well
-    node.move_to_pose(pose)
-
-    # avoid blocking the laser range finder with the gripper
-    pose = {'joint_lift': 0.22}
-    node.move_to_pose(pose)
-    return 'lowered'
-
-
 def draw_robot_pose(robot_xya_pix, image, m_per_pix, color=(0, 0, 255)):
     radius = 10
     x = int(round(robot_xya_pix[0]))
@@ -55,6 +37,7 @@ def draw_robot_pose(robot_xya_pix, image, m_per_pix, color=(0, 0, 255)):
             cv2.line(image, (x, y), (x2, y2), color, 2)
         else:
             cv2.line(image, (x, y), (x2, y2), 255, 2)
+
 
 def display_head_scan(title, head_scan, scale_divisor=2, robot_xya_pix_list=None):
     if head_scan.robot_xy_pix is None or head_scan.robot_ang_rad is None:
@@ -241,7 +224,6 @@ def localize_with_reduced_images(head_scan, merged_map, global_localization=True
     scaled_scan = hs_1
 
     return original_robot_map_frame_pose, corrected_robot_map_frame_pose, original_robot_map_image_pose, corrected_robot_map_image_pose, scaled_scan, scaled_merged_map
-
 
 
 class HeadScan:
