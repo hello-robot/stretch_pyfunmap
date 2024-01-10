@@ -6,6 +6,7 @@ import stretch_pyfunmap.ros_max_height_image as rmhi
 import rospy
 import ros_numpy
 import tf_conversions
+import numpy as np
 import stretch_pyfunmap.utils as utils
 
 
@@ -37,7 +38,7 @@ class ROSHeadScan(ma.HeadScan):
         num_point_clouds = 0
         while num_point_clouds < num_point_clouds_per_pan_ang:
             rospy.sleep(time_between_point_clouds)
-            cloud_time = self.node.point_cloud.stamp
+            cloud_time = self.node.point_cloud.header.stamp
             if (cloud_time is not None) and (cloud_time != prev_cloud_time) and (cloud_time >= settle_time):
                 cloud_frame = self.node.point_cloud.header.frame_id
                 point_cloud = ros_numpy.numpify(self.node.point_cloud)
