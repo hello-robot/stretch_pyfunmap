@@ -9,7 +9,6 @@ import stretch_pyfunmap.ros_max_height_image as rm
 import rospy
 import ros_numpy as rn
 import stretch_pyfunmap.utils as utils
-from actionlib_msgs.msg import GoalStatus
 from std_srvs.srv import Trigger, TriggerRequest
 from control_msgs.msg import FollowJointTrajectoryResult
 
@@ -193,34 +192,26 @@ class FastSingleViewPlanner():
 
 
 class MoveBase():
-    def __init__(self, node, debug_directory=None):
-        self.debug_directory = debug_directory
-        print('MoveBase __init__: self.debug_directory =', self.debug_directory)
 
+    def __init__(self, robot, debug_directory=None):
+        self.debug_directory = debug_directory
         self.forward_obstacle_detector = ForwardMotionObstacleDetector()
         self.local_planner = FastSingleViewPlanner()
-        self.node = node
-        self.unsuccessful_status = [GoalStatus.PREEMPTED, GoalStatus.ABORTED, GoalStatus.REJECTED, GoalStatus.RECALLED, GoalStatus.LOST]
+        self.robot = robot
 
     def head_to_forward_motion_pose(self):
         # Move head to navigation pose.
         #pose = {'joint_head_pan': 0.1, 'joint_head_tilt': -0.9}
         pose = {'joint_head_pan': 0.1, 'joint_head_tilt': -1.1}
-        self.node.move_to_pose(pose)
+        self.robot.move_to_pose(pose)
 
-    def check_move_state(self, trajectory_client):
+    def check_move_state(self):
         at_goal = False
-        unsuccessful_action = False
-        state = trajectory_client.get_state()
-        if state == GoalStatus.SUCCEEDED:
-            rospy.loginfo('Move succeeded!')
-            # wait for the motion to come to a complete stop
-            rospy.sleep(0.5)
+        right_wheel_not_moving = not self.robot.body.base.status['right_wheel']['is_moving_filtered']
+        left_wheel_not_moving = not self.robot.body.base.status['left_wheel']['is_moving_filtered']
+        if right_wheel_not_moving and left_wheel_not_moving:
             at_goal = True
-        elif state in self.unsuccessful_status:
-            rospy.loginfo('Move action terminated without success (state = {0}).'.format(state))
-            unsuccessful_action = True
-        return at_goal, unsuccessful_action
+        return at_goal, False
 
     def local_plan(self, end_xyz, end_frame_id):
         self.local_planner.update(self.node.point_cloud, self.node.tf2_buffer)

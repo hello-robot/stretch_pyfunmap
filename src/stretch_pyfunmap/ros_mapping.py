@@ -7,7 +7,6 @@ import rospy
 import ros_numpy
 import tf_conversions
 import stretch_pyfunmap.utils as utils
-from actionlib_msgs.msg import GoalStatus
 
 
 class ROSHeadScan(ma.HeadScan):
