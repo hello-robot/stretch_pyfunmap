@@ -57,6 +57,9 @@ def draw_robot_pose(robot_xya_pix, image, m_per_pix, color=(0, 0, 255)):
             cv2.line(image, (x, y), (x2, y2), 255, 2)
 
 def display_head_scan(title, head_scan, scale_divisor=2, robot_xya_pix_list=None):
+    if head_scan.robot_xy_pix is None or head_scan.robot_ang_rad is None:
+        print('ERROR: Missing robot xya within head scan')
+        return
     image = head_scan.max_height_im.image
     h, w = image.shape
     color_im = np.zeros((h, w, 3), np.uint8)
@@ -291,6 +294,8 @@ class HeadScan:
 
             self.max_height_im = mhi.MaxHeightImage(voi, m_per_pix, pixel_dtype, use_camera_depth_image=True)
             self.max_height_im.create_blank_rgb_image()
+        self.robot_xy_pix = None
+        self.robot_ang_rad = None
 
     def make_robot_footprint_unobserved(self):
         # replace robot points with unobserved points
