@@ -13,7 +13,7 @@ class ROSHeadScan(ma.HeadScan):
 
     def __init__(self, node, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
         super().__init__(node, max_height_im, voi_side_m, voi_origin_m)
-        rmhi.ROSMaxHeightImage.from_mhi(self.max_height_im) # convert MaxHeightImage to ROS # TODO: implement from_mhi()
+        rmhi.ROSMaxHeightImage.from_mhi(self.max_height_im) # convert MaxHeightImage to ROS
         self.node = self.robot
 
     def capture_point_clouds(self, pose, capture_params):
@@ -47,7 +47,7 @@ class ROSHeadScan(ma.HeadScan):
                 prev_cloud_time = cloud_time
                 
     def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, look_at_self=True):
-        scan_start_time = time.time()
+        scan_start_time = rospy.get_time()
 
         pose = {'joint_head_pan': far_right_pan, 'joint_head_tilt': head_tilt}
         self.node.move_to_pose(pose)
@@ -69,7 +69,7 @@ class ROSHeadScan(ma.HeadScan):
             pose = {'joint_head_pan': head_pan, 'joint_head_tilt': head_tilt}
             self.capture_point_clouds(pose, capture_params)
 
-        scan_end_time = time.time()
+        scan_end_time = rospy.get_time()
         scan_duration = scan_end_time - scan_start_time
         rospy.loginfo(f'HeadScan.execute INFO: The head scan took {scan_duration} seconds.')
 

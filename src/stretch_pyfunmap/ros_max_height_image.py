@@ -106,6 +106,16 @@ class ROSVolumeOfInterest(VolumeOfInterest):
 class ROSMaxHeightImage(MaxHeightImage):
 
     @classmethod
+    def from_mhi(cls, max_height_im):
+        # if already a RMHI, do nothing
+        if type(max_height_im) == ROSMaxHeightImage:
+            return
+
+        max_height_im.voi.__class__ = ROSVolumeOfInterest
+        max_height_im.__class__ = ROSMaxHeightImage
+        return max_height_im
+
+    @classmethod
     def from_file( self, base_filename ):
         data, image, rgb_image, camera_depth_image = MaxHeightImage.load_serialization(base_filename)
 
