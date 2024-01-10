@@ -38,9 +38,9 @@ class ROSHeadScan(ma.HeadScan):
         while num_point_clouds < num_point_clouds_per_pan_ang:
             rospy.sleep(time_between_point_clouds)
             cloud_time = self.node.point_cloud.stamp
-            cloud_frame = self.node.point_cloud.header.frame_id
-            point_cloud = ros_numpy.numpify(self.node.point_cloud)
             if (cloud_time is not None) and (cloud_time != prev_cloud_time) and (cloud_time >= settle_time):
+                cloud_frame = self.node.point_cloud.header.frame_id
+                point_cloud = ros_numpy.numpify(self.node.point_cloud)
                 rgb_points = ros_numpy.point_cloud2.split_rgb_field(point_cloud)
                 self.max_height_im.from_rgb_points_with_tf2(rgb_points, cloud_frame, self.node.tf2_buffer)
                 num_point_clouds += 1

@@ -7,6 +7,7 @@
 import argparse
 import stretch_pyfunmap.robot
 import stretch_pyfunmap.mapping as ma
+import stretch_pyfunmap.navigate as nv
 from stretch_pyfunmap.mapping import display_head_scan
 
 parser = argparse.ArgumentParser(description='Tool to demonstrate FUNMAP navigation.')
@@ -41,5 +42,8 @@ pose marked with a green circle & line. Verify it is correct.
 If correct, press 'q' to close. If it isn't, use Ctrl-C to exit.
 """)
 display_head_scan('Head Scan', head_scanner, scale_divisor=2, robot_xya_pix_list=[list(base_goal)])
+
+# Plan a path
+move_base = nv.MoveBase(robot)
 
 robot.body.stop()
