@@ -76,7 +76,7 @@ class ROSHeadScan(ma.HeadScan):
 
         #####################################
         # record robot pose information and potentially useful transformations
-        self.robot_xy_pix, self.robot_ang_rad = self.max_height_im.get_robot_pose_in_image(self.node.tf2_buffer)
+        self.robot_xy_pix, self.robot_ang_rad, self.timestamp = self.max_height_im.get_robot_pose_in_image(self.node.tf2_buffer)
 
         # Should only need three of these transforms, since the other
         # three should be obtainable via matrix inversion. Variation
