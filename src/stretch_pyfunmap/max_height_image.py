@@ -10,6 +10,7 @@ import threading
 import numpy as np
 from copy import deepcopy
 from collections import deque
+from yaml.loader import SafeLoader
 from scipy.spatial.transform import Rotation
 
 import stretch_pyfunmap.navigation_planning as na
@@ -448,8 +449,8 @@ class MaxHeightImage:
     @classmethod
     def load_serialization( self, base_filename ):
         print('MaxHeightImage: Loading serialization data from base_filename =', base_filename)
-        with open(base_filename + '.yaml', 'r'):
-            data = yaml.load(fid)
+        with open(base_filename + '.yaml', 'r') as fid:
+            data = yaml.load(fid, Loader=SafeLoader)
 
         image_filename = data['image_filename']
         with gzip.open(image_filename, 'rb') as fid:

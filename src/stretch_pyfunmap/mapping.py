@@ -448,15 +448,16 @@ class HeadScan:
         with open(base_filename + '.yaml', 'r') as fid:
             data = yaml.load(fid, Loader=yaml.FullLoader)
 
-        print('data =', data)
+        # print('data =', data)
         max_height_image_base_filename = data['max_height_image_base_filename']
-        max_height_image = rm.ROSMaxHeightImage.from_file(max_height_image_base_filename)
+        max_height_image = mhi.MaxHeightImage.from_file(max_height_image_base_filename)
         head_scan = HeadScan(max_height_image)
 
         head_scan.robot_xy_pix = np.array(data['robot_xy_pix'])
         head_scan.robot_ang_rad = data['robot_ang_rad']
-        head_scan.timestamp = rospy.Time()
-        head_scan.timestamp.set(data['timestamp']['secs'], data['timestamp']['nsecs'])
+        # TODO:
+        # head_scan.timestamp = rospy.Time()
+        # head_scan.timestamp.set(data['timestamp']['secs'], data['timestamp']['nsecs'])
         head_scan.base_link_to_image_mat = np.array(data['base_link_to_image_mat'])
         head_scan.base_link_to_map_mat = np.array(data['base_link_to_map_mat'])
         head_scan.image_to_map_mat = np.array(data['image_to_map_mat'])
