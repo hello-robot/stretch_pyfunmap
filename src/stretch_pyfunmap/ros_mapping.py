@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
+import yaml
+import numpy as np
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.ros_max_height_image as rmhi
+import stretch_pyfunmap.utils as utils
 
 import rospy
 import ros_numpy
 import tf_conversions
-import numpy as np
-import stretch_pyfunmap.utils as utils
 
 
 class ROSHeadScan(ma.HeadScan):
