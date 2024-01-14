@@ -8,7 +8,7 @@
 import argparse
 import stretch_pyfunmap.robot
 import stretch_pyfunmap.mapping as ma
-# import stretch_pyfunmap.navigate as nv
+import stretch_pyfunmap.navigate as nv
 from stretch_pyfunmap.mapping import display_head_scan
 
 parser = argparse.ArgumentParser(description='Tool to demonstrate FUNMAP navigation.')

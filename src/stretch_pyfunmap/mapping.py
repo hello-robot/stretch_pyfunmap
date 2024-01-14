@@ -352,12 +352,16 @@ class HeadScan:
         # three should be obtainable via matrix inversion. Variation
         # in time could result in small differences due to encoder
         # noise.
-        # self.base_link_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('base_link', node.tf2_buffer)
-        # self.base_link_to_map_mat, timestamp = hm.get_p1_to_p2_matrix('base_link', 'map', node.tf2_buffer)
-        # self.image_to_map_mat, timestamp = self.max_height_im.get_image_to_points_mat('map', node.tf2_buffer)
-        # self.image_to_base_link_mat, timestamp = self.max_height_im.get_image_to_points_mat('base_link', node.tf2_buffer)
-        # self.map_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('map', node.tf2_buffer)
-        # self.map_to_base_mat, timestamp = hm.get_p1_to_p2_matrix('map', 'base_link', node.tf2_buffer)
+        baselink_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, 'base_link'))
+        self.base_link_to_image_mat = self.max_height_im.get_points_to_image_mat(baselink_to_voi_mat)
+        self.base_link_to_map_mat = self.robot.get_transform('base_link', 'map')
+        map_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, 'map'))
+        voi_to_map_mat = np.linalg.inv(map_to_voi_mat)
+        self.image_to_map_mat = self.max_height_im.get_image_to_points_mat(voi_to_map_mat)
+        voi_to_baselink_mat = np.linalg.inv(baselink_to_voi_mat)
+        self.image_to_base_link_mat = self.max_height_im.get_image_to_points_mat(voi_to_baselink_mat)
+        self.map_to_image_mat = self.max_height_im.get_points_to_image_mat(map_to_voi_mat)
+        self.map_to_base_mat = self.robot.get_transform('map', 'base_link')
 
         self.make_robot_mast_blind_spot_unobserved()
         self.make_robot_footprint_unobserved()
@@ -430,12 +434,12 @@ class HeadScan:
                 'robot_xy_pix' : self.robot_xy_pix.tolist(),
                 'robot_ang_rad' : robot_ang_rad,
                 # 'timestamp' : {'secs':self.timestamp.secs, 'nsecs':self.timestamp.nsecs},
-                # 'base_link_to_image_mat' : self.base_link_to_image_mat.tolist(),
-                # 'base_link_to_map_mat' : self.base_link_to_map_mat.tolist(),
-                # 'image_to_map_mat' : self.image_to_map_mat.tolist(),
-                # 'image_to_base_link_mat' : self.image_to_base_link_mat.tolist(),
-                # 'map_to_image_mat' : self.map_to_image_mat.tolist(),
-                # 'map_to_base_mat' : self.map_to_base_mat.tolist()}
+                'base_link_to_image_mat' : self.base_link_to_image_mat.tolist(),
+                'base_link_to_map_mat' : self.base_link_to_map_mat.tolist(),
+                'image_to_map_mat' : self.image_to_map_mat.tolist(),
+                'image_to_base_link_mat' : self.image_to_base_link_mat.tolist(),
+                'map_to_image_mat' : self.map_to_image_mat.tolist(),
+                'map_to_base_mat' : self.map_to_base_mat.tolist(),
         }
 
         with open(base_filename + '.yaml', 'w') as fid:
