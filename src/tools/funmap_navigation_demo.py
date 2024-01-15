@@ -5,10 +5,14 @@
 #   python3 funmap_navigation_demo.py --load /home/hello-robot/stretch_user/debug/head_scans/head_scan_20240109235850
 # See the parser arguments below for more command-line options.
 
+import sys
+import copy
 import argparse
+import numpy as np
 import stretch_pyfunmap.robot
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.navigate as nv
+import stretch_pyfunmap.navigation_planning as na
 from stretch_pyfunmap.mapping import display_head_scan
 
 parser = argparse.ArgumentParser(description='Tool to demonstrate FUNMAP navigation.')
@@ -19,34 +23,55 @@ parser.add_argument("--voi-side", type=float, default=8.0,
 args, _ = parser.parse_known_args()
 
 robot = stretch_pyfunmap.robot.FunmapRobot()
-robot.body.stow() # Reduce occlusion from the arm and gripper
+stdout = sys.stdout
+with open('/dev/null', 'w') as sys.stdout:
+    robot.body.stow() # Reduce occlusion from the arm and gripper
+sys.stdout = stdout
 
 # Get head scan
 if args.load:
-    head_scanner = ma.HeadScan.from_file(args.load)
+    # head_scanner = ma.HeadScan.from_file(args.load) # TODO
+    raise NotImplementedError('--load flag not yet implemented')
 else:
+    print("Creating a map...")
     head_scanner = ma.HeadScan(robot, voi_side_m=args.voi_side)
     head_scanner.execute_full()
 
 # User selects a desired base pose
 input("""
 Press enter. In the window that appears, you will see a MHI map
-and the robot's pose marked with a red circle & line (orientation).
-Mouse over the image to a desired base goal, and note the pixel
-position in the bottom left. Multiple it by 2. Press 'q' to close
-the window, and enter the pixel position in the next prompt.
+and the robot's pose marked in red. Mouse over the image to a
+desired base goal, note the pixel x & y, and multiply them by 2.
+Press 'q' to close the window, and enter them in the next prompt.
 """)
 display_head_scan('Head Scan', head_scanner, scale_divisor=2)
-base_goal_str = input("""Enter desired goal as xya tuple (e.g. "(1000, 1000, 0.0)"): """)
+base_goal_str = input("""Enter desired goal as xya tuple (e.g. "(1000, 1000, 0.0)" where angle is in radians): """)
 base_goal = eval(base_goal_str)
-input("""
-Press enter. In the window that appears, you will see the goal
-pose marked with a green circle & line. Verify it is correct.
-If correct, press 'q' to close. If it isn't, use Ctrl-C to exit.
-""")
-display_head_scan('Head Scan', head_scanner, scale_divisor=2, robot_xya_pix_list=[list(base_goal)])
 
-# # Plan a path
-# move_base = nv.MoveBase(robot)
+# Plan a path
+start_xya_pix = [head_scanner.robot_xy_pix[0], head_scanner.robot_xy_pix[1], head_scanner.robot_ang_rad]
+end_xy_pix = [base_goal[0], base_goal[1]]
+line_segment_path, message = na.plan_a_path(head_scanner.max_height_im, start_xya_pix, end_xy_pix)
+if line_segment_path is None:
+    print(message)
+    sys.exit(1)
+
+# Get user confirmation
+input("""
+Press enter. In the window that appears, you will see the robot's
+pose, the goal pose marked in green, and path between them that
+the robot will follow. Press 'q' to close. If the planned path
+looks okay, provide confirmation to proceed in the next prompt.
+""")
+mhi_image_backup = np.copy(head_scanner.max_height_im.image)
+na.draw_line_segment_path(head_scanner.max_height_im.image, line_segment_path)
+display_head_scan('Planned Path', head_scanner, scale_divisor=2, robot_xya_pix_list=[list(base_goal)])
+head_scanner.max_height_im.image = mhi_image_backup
+yn_str = input("""Proceed? (y/n): """)
+if yn_str not in ["y", "Y", "yes", "YES"]:
+    print("Confirmation not provided. Exiting.")
+    sys.exit(1)
+
+# Execute path
 
 robot.body.stop()

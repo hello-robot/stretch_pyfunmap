@@ -1276,7 +1276,7 @@ def compute_floor_mask(max_height_im):
     else:
         median_floor_height_pix = np.median(max_height_im.image[floor_mask > 0])
         median_floor_height_m = m_per_unit * median_floor_height_pix
-        print('median_floor_height_m =', median_floor_height_m)
+        # print('median_floor_height_m =', median_floor_height_m)
         floor_height_pix = median_floor_height_pix
 
     avoid_small_obstacles = False

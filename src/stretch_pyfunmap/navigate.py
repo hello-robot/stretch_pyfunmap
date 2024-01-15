@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 
+import stretch_pyfunmap.max_height_image as mhi
 import stretch_pyfunmap.navigation_planning as na
 
 
@@ -21,14 +22,14 @@ class ForwardMotionObstacleDetector():
         robot_front_x_m = 0.08
         voi_axes = np.identity(3)
         voi_origin = np.array([robot_front_x_m, -voi_side_y_m/2.0, -0.03])
-        self.voi = rm.ROSVolumeOfInterest('base_link', voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
+        self.voi = mhi.VolumeOfInterest('base_link', voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
 
         self.obstacle_pixel_thresh = 100
 
         m_per_pix = 0.006
         pixel_dtype = np.uint8
-        self.max_height_im = rm.ROSMaxHeightImage(self.voi, m_per_pix, pixel_dtype)
-        self.max_height_im.print_info()
+        self.max_height_im = mhi.MaxHeightImage(self.voi, m_per_pix, pixel_dtype)
+        # self.max_height_im.print_info()
 
     def detect(self, point_cloud_msg, tf2_buffer):
         return (self.count_obstacle_pixels(point_cloud_msg, tf2_buffer) > self.obstacle_pixel_thresh)
@@ -86,9 +87,9 @@ class FastSingleViewPlanner():
         voi_axes = np.identity(3)
         voi_origin = np.array([robot_front_x_m, -voi_side_y_m/2.0, -lowest_distance_below_ground])
         self.frame_id = 'base_link'
-        self.voi = rm.ROSVolumeOfInterest(self.frame_id, voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
-        self.max_height_im = rm.ROSMaxHeightImage(self.voi, m_per_pix, pixel_dtype)
-        self.max_height_im.print_info()
+        self.voi = mhi.VolumeOfInterest(self.frame_id, voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
+        self.max_height_im = mhi.MaxHeightImage(self.voi, m_per_pix, pixel_dtype)
+        # self.max_height_im.print_info()
         self.updated = False
 
     def check_line_path(self, end_xyz, end_frame_id, tf2_buffer, floor_mask=None):

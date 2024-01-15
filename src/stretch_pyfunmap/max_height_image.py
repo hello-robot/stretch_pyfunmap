@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 
-import sys
 import cv2
-import math
 import yaml
 import gzip
-import struct
-import threading
 import numpy as np
 from copy import deepcopy
-from collections import deque
-from scipy.spatial.transform import Rotation
 
 import stretch_pyfunmap.navigation_planning as na
 import stretch_pyfunmap.numba_height_image as nh
