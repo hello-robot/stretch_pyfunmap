@@ -72,6 +72,21 @@ if yn_str not in ["y", "Y", "yes", "YES"]:
     print("Confirmation not provided. Exiting.")
     sys.exit(1)
 
-# Execute path
+# Translate path
+rotations = []
+translations = []
+curr_ang = head_scanner.robot_ang_rad
+map_to_voi_mat = head_scanner.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=robot.get_transform(head_scanner.max_height_im.voi.frame_id, 'map'))
+voi_to_map_mat = np.linalg.inv(map_to_voi_mat)
+image_to_map_mat = head_scanner.max_height_im.get_image_to_points_mat(voi_to_map_mat)
+for p0_pix, p1_pix in zip(line_segment_path, line_segment_path[1:]):
+    p0 = (image_to_map_mat @ np.array([p0_pix[0], p0_pix[1], 0.0, 1.0]))[:2]
+    p1 = (image_to_map_mat @ np.array([p1_pix[0], p1_pix[1], 0.0, 1.0]))[:2]
+    travel_vector = p1 - p0
+    travel_dist = np.linalg.norm(travel_vector)
+    travel_ang = np.arctan2(travel_vector[1], travel_vector[0])
+    turn_ang = utils.angle_diff_rad(travel_ang, curr_ang)
+    curr_ang = travel_ang
+    print(turn_ang, travel_dist)
 
 robot.body.stop()
