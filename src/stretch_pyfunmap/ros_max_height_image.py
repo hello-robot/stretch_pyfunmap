@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 
-import sys
-import cv2
-import math
-import struct
-import threading
 import numpy as np
-from copy import deepcopy
-from collections import deque
 from scipy.spatial.transform import Rotation
 
-from stretch_pyfunmap.max_height_image import *
+import stretch_pyfunmap.max_height_image as mhi
 
 import rospy
 import tf2_ros
@@ -27,7 +20,7 @@ from nav_msgs.msg import OccupancyGrid, MapMetaData
 from geometry_msgs.msg import Transform, Pose, Vector3, Quaternion, Point
 
 
-class ROSVolumeOfInterest(VolumeOfInterest):
+class ROSVolumeOfInterest(mhi.VolumeOfInterest):
 
 
     @classmethod
@@ -103,11 +96,21 @@ class ROSVolumeOfInterest(VolumeOfInterest):
 
 
 
-class ROSMaxHeightImage(MaxHeightImage):
+class ROSMaxHeightImage(mhi.MaxHeightImage):
+
+    @classmethod
+    def from_mhi(cls, max_height_im):
+        # if already a RMHI, do nothing
+        if type(max_height_im) == ROSMaxHeightImage:
+            return
+
+        max_height_im.voi.__class__ = ROSVolumeOfInterest
+        max_height_im.__class__ = ROSMaxHeightImage
+        return max_height_im
 
     @classmethod
     def from_file( self, base_filename ):
-        data, image, rgb_image, camera_depth_image = MaxHeightImage.load_serialization(base_filename)
+        data, image, rgb_image, camera_depth_image = mhi.MaxHeightImage.load_serialization(base_filename)
 
         m_per_pix = data['m_per_pix']
         m_per_height_unit = data['m_per_height_unit']

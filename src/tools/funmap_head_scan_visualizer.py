@@ -22,6 +22,7 @@ robot.body.stow() # Reduce occlusion from the arm and gripper
 # Execute head scanning full procedure
 head_scanner = ma.HeadScan(robot, voi_side_m=args.voi_side)
 head_scanner.execute_full()
+
 if args.save:
     head_scanner.save(args.save)
 display_head_scan('Head Scan', head_scanner)

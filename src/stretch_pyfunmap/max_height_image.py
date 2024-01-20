@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 
-import sys
 import cv2
-import math
 import yaml
 import gzip
-import struct
-import threading
 import numpy as np
 from copy import deepcopy
-from collections import deque
-from scipy.spatial.transform import Rotation
 
 import stretch_pyfunmap.navigation_planning as na
 import stretch_pyfunmap.numba_height_image as nh
@@ -448,8 +442,8 @@ class MaxHeightImage:
     @classmethod
     def load_serialization( self, base_filename ):
         print('MaxHeightImage: Loading serialization data from base_filename =', base_filename)
-        with open(base_filename + '.yaml', 'r'):
-            data = yaml.load(fid)
+        with open(base_filename + '.yaml', 'r') as fid:
+            data = yaml.load(fid, Loader=yaml.SafeLoader)
 
         image_filename = data['image_filename']
         with gzip.open(image_filename, 'rb') as fid:
@@ -518,7 +512,7 @@ class MaxHeightImage:
             voi_to_image_mat[2, 3] = 1.0
             voi_to_image_mat[2, 2] = 1.0 / self.m_per_height_unit
         else:
-            rospy.logerr('MaxHeightImage.get_points_to_image_mat: unsupported image type used for max_height_image, dtype = {0}'.format(dtype))
+            print('MaxHeightImage.get_points_to_image_mat ERROR: unsupported image type used for max_height_image, dtype = {0}'.format(dtype))
             assert(False)
 
         points_to_image_mat = np.matmul(voi_to_image_mat, points_to_voi_mat)
@@ -528,6 +522,30 @@ class MaxHeightImage:
 
         return points_to_image_mat
 
+    def get_image_to_points_mat(self, voi_to_points_mat):
+        # This returns a matrix that transforms a point in the image
+        # to a point in the provided ROS frame. However, it does not
+        # quantize the components of the image point, which is a
+        # nonlinear operation that would need to be performed as a
+        # separate step.
+        image_to_voi_mat = np.identity(4)
+        image_to_voi_mat[:3, 3] = self.image_origin
+        image_to_voi_mat[0, 0] = self.m_per_pix
+        image_to_voi_mat[1, 1] = -self.m_per_pix
+        dtype = self.image.dtype
+        if np.issubdtype(dtype, np.integer):
+            image_to_voi_mat[2, 3] = image_to_voi_mat[2,3] - self.m_per_height_unit
+            image_to_voi_mat[2, 2] = self.m_per_height_unit
+        else:
+            print('MaxHeightImage.get_image_to_points_mat ERROR: unsupported image type used for max_height_image, dtype = {0}'.format(dtype))
+            assert(False)
+
+        points_in_image_to_frame_id_mat = np.matmul(voi_to_points_mat, image_to_voi_mat)
+
+        if self.transform_corrected_to_original is not None:
+            points_in_image_to_frame_id_mat = np.matmul(points_in_image_to_frame_id_mat, self.transform_corrected_to_original)
+
+        return points_in_image_to_frame_id_mat
 
     def get_robot_pose_in_image(self, robot_to_image_mat):
         r0 = np.array([0.0, 0.0, 0.0, 1.0])
@@ -539,6 +557,9 @@ class MaxHeightImage:
         robot_xy_pix = r0
         return robot_xy_pix, robot_ang_rad
 
+    def get_point_in_image(self, xyz, xyz_to_image_mat):
+        p = np.matmul(xyz_to_image_mat, np.array([xyz[0], xyz[1], xyz[2], 1.0]))[:3]
+        return p
 
     def make_robot_footprint_unobserved(self, robot_x_pix, robot_y_pix, robot_ang_rad):
         # replace robot points with unobserved points

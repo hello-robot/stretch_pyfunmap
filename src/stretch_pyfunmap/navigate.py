@@ -3,15 +3,8 @@
 import cv2
 import numpy as np
 
+import stretch_pyfunmap.max_height_image as mhi
 import stretch_pyfunmap.navigation_planning as na
-import stretch_pyfunmap.ros_max_height_image as rm
-
-import rospy
-import ros_numpy as rn
-import stretch_pyfunmap.utils as utils
-from actionlib_msgs.msg import GoalStatus
-from std_srvs.srv import Trigger, TriggerRequest
-from control_msgs.msg import FollowJointTrajectoryResult
 
 
 class ForwardMotionObstacleDetector():
@@ -29,14 +22,14 @@ class ForwardMotionObstacleDetector():
         robot_front_x_m = 0.08
         voi_axes = np.identity(3)
         voi_origin = np.array([robot_front_x_m, -voi_side_y_m/2.0, -0.03])
-        self.voi = rm.ROSVolumeOfInterest('base_link', voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
+        self.voi = mhi.VolumeOfInterest('base_link', voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
 
         self.obstacle_pixel_thresh = 100
 
         m_per_pix = 0.006
         pixel_dtype = np.uint8
-        self.max_height_im = rm.ROSMaxHeightImage(self.voi, m_per_pix, pixel_dtype)
-        self.max_height_im.print_info()
+        self.max_height_im = mhi.MaxHeightImage(self.voi, m_per_pix, pixel_dtype)
+        # self.max_height_im.print_info()
 
     def detect(self, point_cloud_msg, tf2_buffer):
         return (self.count_obstacle_pixels(point_cloud_msg, tf2_buffer) > self.obstacle_pixel_thresh)
@@ -94,9 +87,9 @@ class FastSingleViewPlanner():
         voi_axes = np.identity(3)
         voi_origin = np.array([robot_front_x_m, -voi_side_y_m/2.0, -lowest_distance_below_ground])
         self.frame_id = 'base_link'
-        self.voi = rm.ROSVolumeOfInterest(self.frame_id, voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
-        self.max_height_im = rm.ROSMaxHeightImage(self.voi, m_per_pix, pixel_dtype)
-        self.max_height_im.print_info()
+        self.voi = mhi.VolumeOfInterest(self.frame_id, voi_origin, voi_axes, voi_side_x_m, voi_side_y_m, voi_height_m)
+        self.max_height_im = mhi.MaxHeightImage(self.voi, m_per_pix, pixel_dtype)
+        # self.max_height_im.print_info()
         self.updated = False
 
     def check_line_path(self, end_xyz, end_frame_id, tf2_buffer, floor_mask=None):
@@ -130,55 +123,56 @@ class FastSingleViewPlanner():
         rospy.logerr('FastSingleViewPlanner.check_line_path called without first updating the scan with a pointcloud.')
         return False
 
-    def plan_a_path(self, end_xyz, end_frame_id, tf2_buffer, floor_mask=None):
-        if self.updated:
-            robot_xy_pix, robot_ang_rad, timestamp = self.max_height_im.get_robot_pose_in_image(tf2_buffer)
-            robot_xya_pix = [robot_xy_pix[0], robot_xy_pix[1], robot_ang_rad]
-            end_xy_pix = self.max_height_im.get_point_in_image(end_xyz, end_frame_id, tf2_buffer)[:2]
+    def plan_a_path(self, end_xyz, end_frame_id, robot, floor_mask=None):
+        if not self.updated:
+            return None, None
 
-            debug = True
-            if debug and (self.debug_directory is not None):
-                # Save the new scan to disk.
-                dirname = self.debug_directory + 'plan_a_path/'
-                filename = 'plan_a_path_' + utils.create_time_string()
-                print('FastSingleViewPlanner plan_a_path : directory =', dirname)
-                print('FastSingleViewPlanner plan_a_path : filename =', filename)
-                if not os.path.exists(dirname):
-                    os.makedirs(dirname)
-                self.save_scan(dirname + filename)
-                im = self.max_height_im.image.copy()
-                rpix = np.int64(np.round(robot_xya_pix))
-                radius = 20
-                color = 255
-                cv2.circle(im, tuple(rpix[:2]), radius, color, 2)
-                rospy.loginfo('end_xy_pix = {0}'.format(end_xy_pix))
-                epix = np.int64(np.round(end_xy_pix))
-                cv2.circle(im, tuple(epix), radius, color, 2)
-                cv2.imwrite(dirname + filename + '_with_start_and_end.png', im)
+        robot_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=robot.get_transform(self.max_height_im.voi.frame_id, 'base_link'))
+        robot_to_image_mat = self.max_height_im.get_points_to_image_mat(robot_to_voi_mat)
+        robot_xy_pix, robot_ang_rad = self.max_height_im.get_robot_pose_in_image(robot_to_image_mat)
+        robot_xya_pix = [robot_xy_pix[0], robot_xy_pix[1], robot_ang_rad]
+        xyz_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=robot.get_transform(self.max_height_im.voi.frame_id, end_frame_id))
+        xyz_to_image_mat = self.max_height_im.get_points_to_image_mat(xyz_to_voi_mat)
+        end_xy_pix = self.max_height_im.get_point_in_image(end_xyz, xyz_to_image_mat)[:2]
 
-            line_segment_path, message = na.plan_a_path(self.max_height_im, robot_xya_pix, end_xy_pix, floor_mask=floor_mask)
-            if line_segment_path is not None:
-                output_frame = 'base_link'
-                image_to_points_mat, ip_timestamp = self.max_height_im.get_image_to_points_mat(output_frame, tf2_buffer)
-                path = [np.matmul(image_to_points_mat, np.array([p[0], p[1], 0.0, 1.0])) for p in line_segment_path]
-                path = [[p[0], p[1], 0.0] for p in path]
-                return path, 'base_link'
+        debug = False
+        if debug and (self.debug_directory is not None):
+            # Save the new scan to disk.
+            dirname = self.debug_directory + 'plan_a_path/'
+            filename = 'plan_a_path_' + utils.create_time_string()
+            print('FastSingleViewPlanner plan_a_path : directory =', dirname)
+            print('FastSingleViewPlanner plan_a_path : filename =', filename)
+            if not os.path.exists(dirname):
+                os.makedirs(dirname)
+            self.save_scan(dirname + filename)
+            im = self.max_height_im.image.copy()
+            rpix = np.int64(np.round(robot_xya_pix))
+            radius = 20
+            color = 255
+            cv2.circle(im, tuple(rpix[:2]), radius, color, 2)
+            rospy.loginfo('end_xy_pix = {0}'.format(end_xy_pix))
+            epix = np.int64(np.round(end_xy_pix))
+            cv2.circle(im, tuple(epix), radius, color, 2)
+            cv2.imwrite(dirname + filename + '_with_start_and_end.png', im)
+
+        line_segment_path, message = na.plan_a_path(self.max_height_im, robot_xya_pix, end_xy_pix, floor_mask=floor_mask)
+        if line_segment_path is not None:
+            output_frame = 'base_link'
+            output_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, output_frame))
+            voi_to_output_mat = np.linalg.inv(output_to_voi_mat)
+            image_to_points_mat = self.max_height_im.get_image_to_points_mat(voi_to_output_mat)
+            path = [np.matmul(image_to_points_mat, np.array([p[0], p[1], 0.0, 1.0])) for p in line_segment_path]
+            path = [[p[0], p[1], 0.0] for p in path]
+            return path, output_frame
 
         return None, None
 
-    def update(self, point_cloud_msg, tf2_buffer):
+    def update(self, point_cloud, robot):
         self.max_height_im.clear()
-        cloud_time = point_cloud_msg.header.stamp
-        cloud_frame = point_cloud_msg.header.frame_id
-        point_cloud = rn.numpify(point_cloud_msg)
-        only_xyz = False
-        if only_xyz:
-            xyz = rn.point_cloud2.get_xyz_points(point_cloud)
-            self.max_height_im.from_points_with_tf2(xyz, cloud_frame, tf2_buffer)
-        else:
-            rgb_points = rn.point_cloud2.split_rgb_field(point_cloud)
-            self.max_height_im.from_rgb_points_with_tf2(rgb_points, cloud_frame, tf2_buffer)
-        obstacle_im = self.max_height_im.image == 0
+        _, cloud_frame, cloud_arr = point_cloud
+        points_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=robot.get_transform(self.max_height_im.voi.frame_id, cloud_frame))
+        self.max_height_im.from_rgb_points(points_to_voi_mat, cloud_arr)
+        # obstacle_im = self.max_height_im.image == 0
         self.updated = True
 
     def save_scan(self, filename):
@@ -193,38 +187,31 @@ class FastSingleViewPlanner():
 
 
 class MoveBase():
-    def __init__(self, node, debug_directory=None):
-        self.debug_directory = debug_directory
-        print('MoveBase __init__: self.debug_directory =', self.debug_directory)
 
+    def __init__(self, robot, debug_directory=None):
+        self.debug_directory = debug_directory
         self.forward_obstacle_detector = ForwardMotionObstacleDetector()
         self.local_planner = FastSingleViewPlanner()
-        self.node = node
-        self.unsuccessful_status = [GoalStatus.PREEMPTED, GoalStatus.ABORTED, GoalStatus.REJECTED, GoalStatus.RECALLED, GoalStatus.LOST]
+        self.robot = robot
 
     def head_to_forward_motion_pose(self):
         # Move head to navigation pose.
         #pose = {'joint_head_pan': 0.1, 'joint_head_tilt': -0.9}
         pose = {'joint_head_pan': 0.1, 'joint_head_tilt': -1.1}
-        self.node.move_to_pose(pose)
+        self.robot.move_to_pose(pose)
 
-    def check_move_state(self, trajectory_client):
+    def check_move_state(self):
         at_goal = False
         unsuccessful_action = False
-        state = trajectory_client.get_state()
-        if state == GoalStatus.SUCCEEDED:
-            rospy.loginfo('Move succeeded!')
-            # wait for the motion to come to a complete stop
-            rospy.sleep(0.5)
+        right_wheel_not_moving = not self.robot.body.base.status['right_wheel']['is_moving_filtered']
+        left_wheel_not_moving = not self.robot.body.base.status['left_wheel']['is_moving_filtered']
+        if right_wheel_not_moving and left_wheel_not_moving:
             at_goal = True
-        elif state in self.unsuccessful_status:
-            rospy.loginfo('Move action terminated without success (state = {0}).'.format(state))
-            unsuccessful_action = True
         return at_goal, unsuccessful_action
 
     def local_plan(self, end_xyz, end_frame_id):
-        self.local_planner.update(self.node.point_cloud, self.node.tf2_buffer)
-        line_segment_path, frame_id = self.local_planner.plan_a_path(end_xyz, end_frame_id, self.node.tf2_buffer, floor_mask=None)
+        self.local_planner.update(self.robot.get_point_cloud(), self.robot)
+        line_segment_path, frame_id = self.local_planner.plan_a_path(end_xyz, end_frame_id, self.robot, floor_mask=None)
         return line_segment_path, frame_id
 
     def check_line_path(self, end_xyz, end_frame_id):

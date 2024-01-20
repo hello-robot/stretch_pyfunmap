@@ -12,24 +12,6 @@ import stretch_pyfunmap.navigation_planning as na
 import stretch_pyfunmap.max_height_image as mhi
 
 
-def stow_and_lower_arm(node):
-    pose = {'joint_gripper_finger_left': -0.15}
-    node.move_to_pose(pose)
-    pose = {'wrist_extension': 0.01}
-    node.move_to_pose(pose)
-
-    # gripper backwards stow
-    pose = {'joint_wrist_yaw': 3.3}
-
-    # gripper forward stow needs a better forward range of motion to work well
-    node.move_to_pose(pose)
-
-    # avoid blocking the laser range finder with the gripper
-    pose = {'joint_lift': 0.22}
-    node.move_to_pose(pose)
-    return 'lowered'
-
-
 def draw_robot_pose(robot_xya_pix, image, m_per_pix, color=(0, 0, 255)):
     radius = 10
     x = int(round(robot_xya_pix[0]))
@@ -56,7 +38,11 @@ def draw_robot_pose(robot_xya_pix, image, m_per_pix, color=(0, 0, 255)):
         else:
             cv2.line(image, (x, y), (x2, y2), 255, 2)
 
+
 def display_head_scan(title, head_scan, scale_divisor=2, robot_xya_pix_list=None):
+    if head_scan.robot_xy_pix is None or head_scan.robot_ang_rad is None:
+        print('ERROR: Missing robot xya within head scan')
+        return
     image = head_scan.max_height_im.image
     h, w = image.shape
     color_im = np.zeros((h, w, 3), np.uint8)
@@ -83,6 +69,7 @@ def display_head_scan(title, head_scan, scale_divisor=2, robot_xya_pix_list=None
         color_im = cv2.resize(color_im, (nw, nh))
         cv2.imshow(title, color_im)
     cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 def localize_with_reduced_images(head_scan, merged_map, global_localization=True, divisor=6, small_search=False):
@@ -239,7 +226,6 @@ def localize_with_reduced_images(head_scan, merged_map, global_localization=True
     return original_robot_map_frame_pose, corrected_robot_map_frame_pose, original_robot_map_image_pose, corrected_robot_map_image_pose, scaled_scan, scaled_merged_map
 
 
-
 class HeadScan:
     def __init__(self, robot, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
         self.robot = robot
@@ -290,6 +276,8 @@ class HeadScan:
 
             self.max_height_im = mhi.MaxHeightImage(voi, m_per_pix, pixel_dtype, use_camera_depth_image=True)
             self.max_height_im.create_blank_rgb_image()
+        self.robot_xy_pix = None
+        self.robot_ang_rad = None
 
     def make_robot_footprint_unobserved(self):
         # replace robot points with unobserved points
@@ -364,12 +352,16 @@ class HeadScan:
         # three should be obtainable via matrix inversion. Variation
         # in time could result in small differences due to encoder
         # noise.
-        # self.base_link_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('base_link', node.tf2_buffer)
-        # self.base_link_to_map_mat, timestamp = hm.get_p1_to_p2_matrix('base_link', 'map', node.tf2_buffer)
-        # self.image_to_map_mat, timestamp = self.max_height_im.get_image_to_points_mat('map', node.tf2_buffer)
-        # self.image_to_base_link_mat, timestamp = self.max_height_im.get_image_to_points_mat('base_link', node.tf2_buffer)
-        # self.map_to_image_mat, timestamp = self.max_height_im.get_points_to_image_mat('map', node.tf2_buffer)
-        # self.map_to_base_mat, timestamp = hm.get_p1_to_p2_matrix('map', 'base_link', node.tf2_buffer)
+        baselink_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, 'base_link'))
+        self.base_link_to_image_mat = self.max_height_im.get_points_to_image_mat(baselink_to_voi_mat)
+        self.base_link_to_map_mat = self.robot.get_transform('base_link', 'map')
+        map_to_voi_mat = self.max_height_im.voi.get_points_to_voi_matrix(points_to_frame_id_mat=self.robot.get_transform(self.max_height_im.voi.frame_id, 'map'))
+        voi_to_map_mat = np.linalg.inv(map_to_voi_mat)
+        self.image_to_map_mat = self.max_height_im.get_image_to_points_mat(voi_to_map_mat)
+        voi_to_baselink_mat = np.linalg.inv(baselink_to_voi_mat)
+        self.image_to_base_link_mat = self.max_height_im.get_image_to_points_mat(voi_to_baselink_mat)
+        self.map_to_image_mat = self.max_height_im.get_points_to_image_mat(map_to_voi_mat)
+        self.map_to_base_mat = self.robot.get_transform('map', 'base_link')
 
         self.make_robot_mast_blind_spot_unobserved()
         self.make_robot_footprint_unobserved()
@@ -442,12 +434,12 @@ class HeadScan:
                 'robot_xy_pix' : self.robot_xy_pix.tolist(),
                 'robot_ang_rad' : robot_ang_rad,
                 # 'timestamp' : {'secs':self.timestamp.secs, 'nsecs':self.timestamp.nsecs},
-                # 'base_link_to_image_mat' : self.base_link_to_image_mat.tolist(),
-                # 'base_link_to_map_mat' : self.base_link_to_map_mat.tolist(),
-                # 'image_to_map_mat' : self.image_to_map_mat.tolist(),
-                # 'image_to_base_link_mat' : self.image_to_base_link_mat.tolist(),
-                # 'map_to_image_mat' : self.map_to_image_mat.tolist(),
-                # 'map_to_base_mat' : self.map_to_base_mat.tolist()}
+                'base_link_to_image_mat' : self.base_link_to_image_mat.tolist(),
+                'base_link_to_map_mat' : self.base_link_to_map_mat.tolist(),
+                'image_to_map_mat' : self.image_to_map_mat.tolist(),
+                'image_to_base_link_mat' : self.image_to_base_link_mat.tolist(),
+                'map_to_image_mat' : self.map_to_image_mat.tolist(),
+                'map_to_base_mat' : self.map_to_base_mat.tolist(),
         }
 
         with open(base_filename + '.yaml', 'w') as fid:
@@ -460,15 +452,16 @@ class HeadScan:
         with open(base_filename + '.yaml', 'r') as fid:
             data = yaml.load(fid, Loader=yaml.FullLoader)
 
-        print('data =', data)
+        # print('data =', data)
         max_height_image_base_filename = data['max_height_image_base_filename']
-        max_height_image = rm.ROSMaxHeightImage.from_file(max_height_image_base_filename)
+        max_height_image = mhi.MaxHeightImage.from_file(max_height_image_base_filename)
         head_scan = HeadScan(max_height_image)
 
         head_scan.robot_xy_pix = np.array(data['robot_xy_pix'])
         head_scan.robot_ang_rad = data['robot_ang_rad']
-        head_scan.timestamp = rospy.Time()
-        head_scan.timestamp.set(data['timestamp']['secs'], data['timestamp']['nsecs'])
+        # TODO:
+        # head_scan.timestamp = rospy.Time()
+        # head_scan.timestamp.set(data['timestamp']['secs'], data['timestamp']['nsecs'])
         head_scan.base_link_to_image_mat = np.array(data['base_link_to_image_mat'])
         head_scan.base_link_to_map_mat = np.array(data['base_link_to_map_mat'])
         head_scan.image_to_map_mat = np.array(data['image_to_map_mat'])

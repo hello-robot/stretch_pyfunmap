@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 
+import yaml
+import numpy as np
 import stretch_pyfunmap.mapping as ma
 import stretch_pyfunmap.ros_max_height_image as rmhi
+import stretch_pyfunmap.utils as utils
 
 import rospy
 import ros_numpy
 import tf_conversions
-import stretch_pyfunmap.utils as utils
-from actionlib_msgs.msg import GoalStatus
 
 
 class ROSHeadScan(ma.HeadScan):
 
     def __init__(self, node, max_height_im=None, voi_side_m=8.0, voi_origin_m=None):
         super().__init__(node, max_height_im, voi_side_m, voi_origin_m)
-        rmhi.ROSMaxHeightImage.from_mhi(self.max_height_im) # convert MaxHeightImage to ROS # TODO: implement from_mhi()
+        rmhi.ROSMaxHeightImage.from_mhi(self.max_height_im) # convert MaxHeightImage to ROS
         self.node = self.robot
 
     def capture_point_clouds(self, pose, capture_params):
@@ -38,17 +39,17 @@ class ROSHeadScan(ma.HeadScan):
         num_point_clouds = 0
         while num_point_clouds < num_point_clouds_per_pan_ang:
             rospy.sleep(time_between_point_clouds)
-            cloud_time = self.node.point_cloud.stamp
-            cloud_frame = self.node.point_cloud.header.frame_id
-            point_cloud = ros_numpy.numpify(self.node.point_cloud)
+            cloud_time = self.node.point_cloud.header.stamp
             if (cloud_time is not None) and (cloud_time != prev_cloud_time) and (cloud_time >= settle_time):
+                cloud_frame = self.node.point_cloud.header.frame_id
+                point_cloud = ros_numpy.numpify(self.node.point_cloud)
                 rgb_points = ros_numpy.point_cloud2.split_rgb_field(point_cloud)
                 self.max_height_im.from_rgb_points_with_tf2(rgb_points, cloud_frame, self.node.tf2_buffer)
                 num_point_clouds += 1
                 prev_cloud_time = cloud_time
                 
     def execute(self, head_tilt, far_left_pan, far_right_pan, num_pan_steps, capture_params, look_at_self=True):
-        scan_start_time = time.time()
+        scan_start_time = rospy.get_time()
 
         pose = {'joint_head_pan': far_right_pan, 'joint_head_tilt': head_tilt}
         self.node.move_to_pose(pose)
@@ -70,13 +71,13 @@ class ROSHeadScan(ma.HeadScan):
             pose = {'joint_head_pan': head_pan, 'joint_head_tilt': head_tilt}
             self.capture_point_clouds(pose, capture_params)
 
-        scan_end_time = time.time()
+        scan_end_time = rospy.get_time()
         scan_duration = scan_end_time - scan_start_time
         rospy.loginfo(f'HeadScan.execute INFO: The head scan took {scan_duration} seconds.')
 
         #####################################
         # record robot pose information and potentially useful transformations
-        self.robot_xy_pix, self.robot_ang_rad = self.max_height_im.get_robot_pose_in_image(self.node.tf2_buffer)
+        self.robot_xy_pix, self.robot_ang_rad, self.timestamp = self.max_height_im.get_robot_pose_in_image(self.node.tf2_buffer)
 
         # Should only need three of these transforms, since the other
         # three should be obtainable via matrix inversion. Variation
@@ -115,3 +116,27 @@ class ROSHeadScan(ma.HeadScan):
 
         with open(base_filename + '.yaml', 'w') as fid:
             yaml.dump(data, fid)
+
+    @classmethod
+    def from_file(self, base_filename):
+        print('HeadScan.from_file: base_filename =', base_filename)
+        with open(base_filename + '.yaml', 'r') as fid:
+            data = yaml.load(fid, Loader=yaml.FullLoader)
+
+        # print('data =', data)
+        max_height_image_base_filename = data['max_height_image_base_filename']
+        max_height_image = rm.ROSMaxHeightImage.from_file(max_height_image_base_filename)
+        head_scan = HeadScan(max_height_image)
+
+        head_scan.robot_xy_pix = np.array(data['robot_xy_pix'])
+        head_scan.robot_ang_rad = data['robot_ang_rad']
+        head_scan.timestamp = rospy.Time()
+        head_scan.timestamp.set(data['timestamp']['secs'], data['timestamp']['nsecs'])
+        head_scan.base_link_to_image_mat = np.array(data['base_link_to_image_mat'])
+        head_scan.base_link_to_map_mat = np.array(data['base_link_to_map_mat'])
+        head_scan.image_to_map_mat = np.array(data['image_to_map_mat'])
+        head_scan.image_to_base_link_mat = np.array(data['image_to_base_link_mat'])
+        head_scan.map_to_image_mat = np.array(data['map_to_image_mat'])
+        head_scan.map_to_base_mat = np.array(data['map_to_base_mat'])
+
+        return head_scan

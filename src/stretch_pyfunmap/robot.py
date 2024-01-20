@@ -276,14 +276,14 @@ class FunmapRobot:
     def move_to_pose(self, pose, return_before_done=False, custom_contact_thresholds=False):
         if custom_contact_thresholds:
             raise Exception('FunmapRobot.move_to_pose ERROR: I dont support contact thresholds yet')
-        print(f'Moving to {pose}')
+        # manipulator & head
         if 'joint_lift' in pose:
             self.body.lift.move_to(pose['joint_lift'])
         if 'joint_arm' in pose:
             self.body.arm.move_to(pose['joint_arm'])
         if 'wrist_extension' in pose:
             self.body.arm.move_to(pose['wrist_extension'])
-        self.body.push_command()
+
         if 'joint_wrist_yaw' in pose:
             self.body.end_of_arm.move_to('wrist_yaw', pose['joint_wrist_yaw'])
         if 'joint_wrist_pitch' in pose:
@@ -296,6 +296,16 @@ class FunmapRobot:
             self.body.head.move_to('head_tilt', pose['joint_head_tilt'])
         if 'joint_gripper_finger_left' in pose or 'joint_gripper_finger_right' in pose:
             print('FunmapRobot.move_to_pose WARN: gripper not executing')
+
+        # mobile base
+        if 'rotate_mobile_base' in pose and 'translate_mobile_base' in pose:
+            raise Exception('FunmapRobot.move_to_pose ERROR: cant command mobile base to rotate & translate simultaneously')
+        if 'rotate_mobile_base' in pose:
+            self.body.base.rotate_by(pose['rotate_mobile_base'])
+        if 'translate_mobile_base' in pose:
+            self.body.base.translate_by(pose['translate_mobile_base'])
+
+        self.body.push_command()
         if not return_before_done:
             self.body.wait_command()
 
