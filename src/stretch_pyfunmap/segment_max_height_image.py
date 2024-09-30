@@ -1137,7 +1137,7 @@ def test_segment(image, mm_per_unit, zero_height_unit, segmentation_scale=0.1, v
     num_bins =  whole_number_multiplier * range_width
     bin_per_unit = num_bins / float(range_width)
     values = image[image!=0].flatten()
-    value_hist, bin_edges = np.histogram(values, bins=num_bins, range=(range_min, range_max), normed=False, weights=None, density=True)
+    value_hist, bin_edges = np.histogram(values, bins=num_bins, range=(range_min, range_max), weights=None, density=True)
 
     # Simple Bimodal Histogram for Testing
     value_hist[:] = 0
